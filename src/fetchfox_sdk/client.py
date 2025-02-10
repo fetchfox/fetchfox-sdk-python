@@ -217,7 +217,7 @@ class FetchFoxSDK:
         result_items = self.await_job(job_id)
         return result_items
 
-    def crawl(self, url: str, instruction: str) -> List[Dict[str, str]]:
+    def find_urls(self, url: str, instruction: str) -> List[Dict[str, str]]:
         """Find URLs on a webpage using AI.
         
         Args:

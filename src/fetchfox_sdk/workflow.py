@@ -19,7 +19,7 @@ class Workflow:
             "name": "const",
             "args": {
                 "items": [{"url": url}],
-                "maxPages": 1
+                "maxPages": 1 #TODO
             }
         })
         return self
@@ -29,17 +29,41 @@ class Workflow:
             "name": "extract",
             "args": {
                 "questions": template,
-                "single": True,
-                "maxPages": 1
+                "single": True, #TODO
+                "maxPages": 1 #TODO
             }
         })
         return self
 
     def limit(self, n: int) -> "Workflow":
-        self._options["limit"] = n
+        self._workflow.options["limit"] = n
+        #TODO: This is a global limit, and if used multiple times, will silently
+        #overwrite the last setting.  Raise error if limit is already set,
+        # to call attention to intended use and actual function?
         return self
 
-    def to_dict(self) -> Dict[str, Any]:
+    def find_urls(self, instruction: str, max_pages=1) -> "Workflow":
+	    self._workflow["steps"].append({
+	        "name": "crawl",
+	        "args": {
+	            "query": instruction,
+	            "maxPages": max_pages #TODO
+	            #TODO: generated code in app also shows a limit:null here?
+	        }
+	    })
+	    return self
+
+	def unique(self, field: str) -> "Workflow":
+	    raise NotImplementedError
+	    #return self
+
+	def to_dict(self) -> Dict[str, Any]:
         """Convert workflow to dictionary format."""
         self._workflow["options"] = self._options
         return self._workflow
+
+	def __json__(self):
+		return self.to_dict()
+
+	def to_json(self):
+		return json.dumps(self)
