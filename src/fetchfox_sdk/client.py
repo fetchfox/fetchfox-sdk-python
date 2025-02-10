@@ -39,22 +39,17 @@ class FetchFoxSDK:
         response.raise_for_status()
         return response.json()
 
-    def register_workflow(self, workflow: Union[Workflow, dict]) -> str:
-        """Create a new workflow.
+    def register_workflow(self, workflow: Workflow) -> str:
+    """Create a new workflow.
 
-        Args:
-            workflow: Workflow object or configuration dictionary
+    Args:
+        workflow: Workflow object
 
-        Returns:
-            Workflow ID
-        """
-        if isinstance(workflow, Workflow):
-            workflow_dict = workflow.to_dict()
-        else:
-            workflow_dict = workflow
-
-        response = self._request('POST', 'workflows', workflow_dict)
-        return response['id']
+    Returns:
+        Workflow ID
+    """
+    response = self._request('POST', 'workflows', workflow)
+    return response['id']
 
     def get_workflows(self) -> list:
         """Get workflows
@@ -66,7 +61,7 @@ class FetchFoxSDK:
         return response['results']
 
     def run_workflow(self, workflow_id: Optional[str] = None,
-                    workflow: Optional[Union[Workflow, dict]] = None,
+                    workflow: Optional[Workflow] = None,
                     params: Optional[dict] = None) -> str:
         """Run a workflow. Either provide the ID of a registered workflow,
         or provide a workflow configuration (which will be registered
@@ -74,7 +69,7 @@ class FetchFoxSDK:
 
         Args:
             workflow_id: ID of an existing workflow to run
-            workflow: A Workflow object or configuration dictionary to register and run
+            workflow: A Workflow object to register and run
             params: Optional parameters for the workflow
 
         Returns:
@@ -95,14 +90,7 @@ class FetchFoxSDK:
             raise NotImplementedError("Cannot pass params to workflows yet")
 
         if workflow is not None:
-            # Convert Workflow object to dict if needed
-            if isinstance(workflow, Workflow):
-                workflow_dict = workflow.to_dict()
-            else:
-                workflow_dict = workflow
-
-            # Register the workflow first
-            workflow_id = self.register_workflow(workflow_dict)
+            workflow_id = self.register_workflow(workflow)
             print(f"Registered new workflow with id: {workflow_id}")
 
         response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
