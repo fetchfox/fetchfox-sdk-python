@@ -10,6 +10,15 @@ class Workflow:
         workflow._workflow = workflow_dict
         return workflow
 
+    @classmethod
+    def from_dict(cls, workflow_dict: dict) -> "Workflow":
+        """Create a workflow from a dictionary."""
+        workflow = cls()
+        workflow._workflow = workflow_dict
+        #TODO: We could actually implement validation in __init__
+        #TODO: maybe this should not be here at all, might confuse.
+        return workflow
+
     def __init__(self):
         self._workflow = {
             "steps": [],
