@@ -40,16 +40,16 @@ class FetchFoxSDK:
         return response.json()
 
     def register_workflow(self, workflow: Workflow) -> str:
-    """Create a new workflow.
+        """Create a new workflow.
 
-    Args:
-        workflow: Workflow object
+        Args:
+            workflow: Workflow object
 
-    Returns:
-        Workflow ID
-    """
-    response = self._request('POST', 'workflows', workflow)
-    return response['id']
+        Returns:
+            Workflow ID
+        """
+        response = self._request('POST', 'workflows', workflow)
+        return response['id']
 
     def get_workflows(self) -> list:
         """Get workflows
@@ -58,13 +58,13 @@ class FetchFoxSDK:
             List of workflows
         """
         response = self._request("GET", "workflows")
-        return response['results']
+        return response['results'] #TODO: return workflow objects?
 
     def run_workflow(self, workflow_id: Optional[str] = None,
                     workflow: Optional[Workflow] = None,
                     params: Optional[dict] = None) -> str:
         """Run a workflow. Either provide the ID of a registered workflow,
-        or provide a workflow configuration (which will be registered
+        or provide a workflow object (which will be registered
         automatically, for convenience)
 
         Args:
@@ -88,6 +88,7 @@ class FetchFoxSDK:
 
         if params is not None:
             raise NotImplementedError("Cannot pass params to workflows yet")
+            #TODO
 
         if workflow is not None:
             workflow_id = self.register_workflow(workflow)
@@ -134,24 +135,29 @@ class FetchFoxSDK:
         if item_template is None and instruction is None:
             raise ValueError("Please provide an item_template or prompt.")
 
-        workflow = Workflow().init(url)
+        implied_workflow = Workflow().init(url)
 
         if item_template:
-            workflow.extract(item_template)
+            implied_workflow.extract(item_template)
         else:
-            # This will raise NotImplementedError as per the current implementation
+            # TODO:
+            #   GET /api/v2/fetch?{URL}
+            #   POST /api/v2/plan/from-prompt
             raise NotImplementedError("Extraction with instruction not yet implemented")
 
-        job_id = self.run_workflow(workflow=workflow)
+        job_id = self.run_workflow(workflow=implied_workflow)
+        # The workflow will be registered and run, but in this convenience
+        # function, the user doesn't care about that.
+
         return self.await_job_completion(job_id)
 
     def find_urls(self, url: str, instruction: str, max_pages: int = 1) -> List[Dict[str, str]]:
         """Find URLs on a webpage using AI."""
-        workflow = (
+        implied_workflow = (
             Workflow()
             .init(url)
             .find_urls(instruction, max_pages=max_pages)
         )
 
-        job_id = self.run_workflow(workflow=workflow)
+        job_id = self.run_workflow(workflow=implied_workflow)
         return self.await_job_completion(job_id)
