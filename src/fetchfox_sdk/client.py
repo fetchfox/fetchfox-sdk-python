@@ -1,7 +1,7 @@
 import requests
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 import json
 from urllib.parse import urljoin
 import os
@@ -107,7 +107,7 @@ class FetchFoxSDK:
             #   Or, maybe they need to go in as a dictionary on the side?
 
         if workflow_id is None:
-            workflow_id = self.register_workflow(workflow)
+            workflow_id = self.register_workflow(workflow) # type: ignore
             print(f"Registered new workflow with id: {workflow_id}")
 
         #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
@@ -128,7 +128,7 @@ class FetchFoxSDK:
         return self._request('GET', f'jobs/{job_id}')
 
     def await_job_completion(self, job_id: str, poll_interval: float = 5.0,
-            full_response: bool = False) -> dict:
+            full_response: bool = False):
         """Wait for a job to complete and return the resulting items or full
         response.
 
