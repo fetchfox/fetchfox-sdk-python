@@ -8,9 +8,12 @@ API_KEY = "test_api_key_local"
 TEST_HOST = "http://127.0.0.1:8081"
 
 @pytest.fixture
-def sdk():
+def fox_sdk():
+    #TODO: right now, we don't hit this.  Just mocks.
+    # We can parameterize this so as to highlight very clearly if the mocks
+    # differ from the actual reponses, and also allow  the tests to run
+    # without having a development server up
     return FetchFoxSDK(api_key=API_KEY, host=TEST_HOST)
-
 
 def test_register_workflow(fox_sdk):
     workflow = Workflow().init("https://example.com")
@@ -18,7 +21,7 @@ def test_register_workflow(fox_sdk):
     with responses.RequestsMock() as rsps:
         rsps.add(
             responses.POST,
-            "https://fetchfox.ai/api/v2/workflows",
+            f"{fox_sdk.base_url}workflows",
             json={"id": "wf_123"},
             status=200
         )
@@ -35,7 +38,7 @@ def test_run_workflow(fox_sdk):
         # Mock workflow registration
         rsps.add(
             responses.POST,
-            "https://fetchfox.ai/api/v2/workflows",
+            f"{fox_sdk.base_url}workflows",
             json={"id": "wf_123"},
             status=200
         )
@@ -43,7 +46,7 @@ def test_run_workflow(fox_sdk):
         # Mock workflow run
         rsps.add(
             responses.POST,
-            "https://fetchfox.ai/api/v2/workflows/wf_123/run",
+            f"{fox_sdk.base_url}workflows/wf_123/run",
             json={"jobId": "job_456"},
             status=200
         )
@@ -57,7 +60,7 @@ def test_await_job_completion(fox_sdk):
         # First call returns not done
         rsps.add(
             responses.GET,
-            "https://fetchfox.ai/api/v2/jobs/job_123",
+            f"{fox_sdk.base_url}jobs/job_123",
             json={"done": False},
             status=200
         )
@@ -65,7 +68,7 @@ def test_await_job_completion(fox_sdk):
         # Second call returns done with results
         rsps.add(
             responses.GET,
-            "https://fetchfox.ai/api/v2/jobs/job_123",
+            f"{fox_sdk.base_url}jobs/job_123",
             json={
                 "done": True,
                 "results": {
@@ -86,7 +89,7 @@ def test_extract_with_template(fox_sdk):
         # Mock workflow registration
         rsps.add(
             responses.POST,
-            "https://fetchfox.ai/api/v2/workflows",
+            f"{fox_sdk.base_url}workflows",
             json={"id": "wf_123"},
             status=200
         )
@@ -94,7 +97,7 @@ def test_extract_with_template(fox_sdk):
         # Mock workflow run
         rsps.add(
             responses.POST,
-            "https://fetchfox.ai/api/v2/workflows/wf_123/run",
+            f"{fox_sdk.base_url}workflows/wf_123/run",
             json={"jobId": "job_456"},
             status=200
         )
@@ -102,7 +105,7 @@ def test_extract_with_template(fox_sdk):
         # Mock job completion
         rsps.add(
             responses.GET,
-            "https://fetchfox.ai/api/v2/jobs/job_456",
+            f"{fox_sdk.base_url}jobs/job_456",
             json={
                 "done": True,
                 "results": {

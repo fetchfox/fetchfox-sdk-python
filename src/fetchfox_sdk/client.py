@@ -1,10 +1,14 @@
 import requests
 import time
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 import json
 from urllib.parse import urljoin
 import os
 from .workflow import Workflow
+
+#DBG:
+from pprint import pprint
 
 _API_PREFIX = "/api/v2/"
 
@@ -48,7 +52,7 @@ class FetchFoxSDK:
         Returns:
             Workflow ID
         """
-        response = self._request('POST', 'workflows', workflow)
+        response = self._request('POST', 'workflows', workflow.to_dict())
         return response['id']
 
     def get_workflows(self) -> list:
@@ -98,15 +102,47 @@ class FetchFoxSDK:
         return response['jobId']
 
     def get_job_status(self, job_id: str) -> dict:
-        """Get the status and results of a job."""
+        """Get the status and results of a job.
+
+        NOTE: Jobs are not created immediately after you call run_workflow().
+        The status will not be available until the job is scheduled, so this
+        will 404 initially.
+        """
         return self._request('GET', f'jobs/{job_id}')
 
     def await_job_completion(self, job_id: str, poll_interval: float = 5.0,
             full_response: bool = False) -> dict:
         """Wait for a job to complete and return the resulting items or full
-        response."""
+        response.
+
+        Use "get_job_status()" if you want to manage polling yourself.
+        """
+
+        MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5
+        started_waiting_for_job_dt = None
+
         while True:
-            status = self.get_job_status(job_id)
+
+            try:
+                status = self.get_job_status(job_id)
+                pprint(status)
+
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    print("Waiting for job to be scheduled.")
+
+                    if started_waiting_for_job_dt is None:
+                        started_waiting_for_job_dt = datetime.now()
+                    else:
+                        waited = datetime.now() - started_waiting_for_job_dt
+                        if waited > timedelta(minutes=MAX_WAIT_FOR_JOB_ALIVE_MINUTES):
+                            raise RuntimeError(
+                                f"Job {job_id} is taking unusually long to schedule.")
+
+                    status = {}
+                else:
+                    raise
+
             if status.get('done'):
                 if full_response:
                     return status
@@ -142,12 +178,14 @@ class FetchFoxSDK:
         else:
             # TODO:
             #   GET /api/v2/fetch?{URL}
-            #   POST /api/v2/plan/from-prompt
+            #   POST /api/v2/plan/from-prompt  -- give it a url/html/ returns workflow
             raise NotImplementedError("Extraction with instruction not yet implemented")
 
         job_id = self.run_workflow(workflow=implied_workflow)
         # The workflow will be registered and run, but in this convenience
         # function, the user doesn't care about that.
+
+        time.sleep(2) #TODO! If you attempt immediately, you get a 404.
 
         return self.await_job_completion(job_id)
 

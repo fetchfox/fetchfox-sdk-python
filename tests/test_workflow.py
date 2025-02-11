@@ -90,7 +90,18 @@ def test_limit():
     
     assert w.to_dict()['options']['limit'] == limit
 
-#TODO: test behavior when limit is redefined, expect error raised?
+def test_limit__cannot_be_set_twice():
+    """Test that attempting to set limit twice raises ValueError"""
+    w = (
+        Workflow()
+        .init("https://example.com")
+        .extract({"name": "What's the name?"})
+        .limit(5)
+    )
+
+    with pytest.raises(ValueError):
+        w.limit(10)
+
 
 def test_unique():
     """Test unique configuration"""

@@ -25,7 +25,6 @@ class Workflow:
             "options": {}
         }
 
-
     def init(self, url: str) -> "Workflow":
         self._workflow["steps"].append({
             "name": "const",
@@ -42,16 +41,22 @@ class Workflow:
             "args": {
                 "questions": template,
                 "single": True, #TODO
-                "maxPages": 1 #TODO
+                "maxPages": 1 #TODO - This will paginate too!
+                #todo: limit
+                #TODO:
+                #   view: selecthtml / textonly
             }
         })
         return self
 
+    ##TODO: transform (is extract AND findUrls)
+
     def limit(self, n: int) -> "Workflow":
+        if self._workflow['options'].get('limit') is not None:
+            raise ValueError(
+                "This limit is per-workflow, and may only be set once.")
+
         self._workflow['options']["limit"] = n
-        #TODO: This is a global limit, and if used multiple times, will silently
-        #overwrite the last setting.  Raise error if limit is already set,
-        # to call attention to intended use and actual function?
         return self
 
     def find_urls(self, instruction: str, max_pages=1) -> "Workflow":
@@ -59,11 +64,16 @@ class Workflow:
             "name": "crawl",
             "args": {
                 "query": instruction,
-                "maxPages": max_pages #TODO
+                "maxPages": max_pages #TODO: None means no pagination, >=1 means paginate
                 #TODO: generated code in app also shows a limit:null here?
+                #TODO: limit items can be here
             }
         })
         return self
+
+    #TODO:
+    #crawl
+
 
     def unique(self, field: str) -> "Workflow":
         raise NotImplementedError
@@ -72,9 +82,6 @@ class Workflow:
     def to_dict(self) -> Dict[str, Any]:
         """Convert workflow to dictionary format."""
         return self._workflow
-
-    def __json__(self):
-        return self.to_dict()
 
     def to_json(self):
         return json.dumps(self)
