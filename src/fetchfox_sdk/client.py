@@ -53,6 +53,10 @@ class FetchFoxSDK:
             Workflow ID
         """
         response = self._request('POST', 'workflows', workflow.to_dict())
+
+        # NOTE: If we need to return anything else here, we should keep this
+        # default behavior, but add an optional kwarg so "full_response=True"
+        # can be supplied, and then we return everything
         return response['id']
 
     def get_workflows(self) -> list:
@@ -62,14 +66,20 @@ class FetchFoxSDK:
             List of workflows
         """
         response = self._request("GET", "workflows")
-        return response['results'] #TODO: return workflow objects?
+
+        # NOTE: Should we return Workflow objects intead?
+        return response['results']
 
     def run_workflow(self, workflow_id: Optional[str] = None,
                     workflow: Optional[Workflow] = None,
                     params: Optional[dict] = None) -> str:
         """Run a workflow. Either provide the ID of a registered workflow,
         or provide a workflow object (which will be registered
-        automatically, for convenience)
+        automatically, for convenience).
+
+        You can browse https://fetcfox.ai to find publicly available workflows
+        authored by others.  Copy the workflow ID and use it here.  Often,
+        in this case, you will also want to provide parameters.
 
         Args:
             workflow_id: ID of an existing workflow to run
@@ -92,13 +102,20 @@ class FetchFoxSDK:
 
         if params is not None:
             raise NotImplementedError("Cannot pass params to workflows yet")
-            #TODO
+            # TODO:
+            #   It sounds like these might be passed in the const/init step?
+            #   Or, maybe they need to go in as a dictionary on the side?
 
-        if workflow is not None:
+        if workflow_id is None:
             workflow_id = self.register_workflow(workflow)
             print(f"Registered new workflow with id: {workflow_id}")
 
-        response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
+        #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
+        response = self._request('POST', f'workflows/{workflow_id}/run')
+
+        # NOTE: If we need to return anything else here, we should keep this
+        # default behavior, but add an optional kwarg so "full_response=True"
+        # can be supplied, and then we return everything
         return response['jobId']
 
     def get_job_status(self, job_id: str) -> dict:
