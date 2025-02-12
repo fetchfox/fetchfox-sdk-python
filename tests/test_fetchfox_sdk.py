@@ -119,7 +119,86 @@ def test_extract__with_template(fox_sdk):
         assert results == [{"name": "Test Item"}]
         assert len(rsps.calls) == 3
 
+def test_plan_extraction_from_prompt(fox_sdk):
+   url = "https://earthquake.usgs.gov/earthquakes/map/?extent=-89.71968,-79.80469&extent=89.71968,479.88281"
+   instruction = "Grab me the magnitude, location, and time of all the earthquakes listed on this page."
+
+   with responses.RequestsMock() as rsps:
+       # Mock the fetch request
+       rsps.add(
+           responses.GET,
+           f"{fox_sdk.base_url}fetch?{url}",
+           json={
+               "title": "Latest Earthquakes",
+               "screenshot": "https://ffcloud.s3.amazonaws.com/fetchfox-screenshots/3v2ek2o503/https-earthquake-usgs-gov-earthquakes-map-extent-89-71968-79-80469-extent-89-71968-479-88281.png",
+               "html": "https://ffcloud.s3.amazonaws.com/fetchfox-htmls/3v2ek2o503/https-earthquake-usgs-gov-earthquakes-map-extent-89-71968-79-80469-extent-89-71968-479-88281.html",
+               "sec": 10.053
+           },
+           status=200
+       )
+
+       # Mock the plan request
+       expected_plan = {
+           "steps": [
+               {
+                   "name": "const",
+                   "args": {
+                       "items": [
+                           {
+                               "url": url
+                           }
+                       ],
+                       "maxPages": 1
+                   }
+               },
+               {
+                   "name": "extract",
+                   "args": {
+                       "questions": {
+                           "magnitude": "What is the magnitude of this earthquake?",
+                           "location": "What is the location of this earthquake?",
+                           "time": "What is the time of this earthquake?"
+                       },
+                       "single": True,
+                       "maxPages": 1
+                   }
+               }
+           ],
+           "options": {
+               "tokens": {},
+               "user": None,
+               "limit": None,
+               "publishAllSteps": False
+           },
+           "name": "USGS Earthquake Details Scraper",
+           "description": "Scrape earthquake details including magnitude, location, and time from the USGS earthquake map."
+       }
+
+       rsps.add(
+           responses.POST,
+           f"{fox_sdk.base_url}plan/from-prompt",
+           json=expected_plan,
+           status=200,
+           match=[
+               responses.matchers.json_params_matcher({
+                   "prompt": instruction,
+                   "urls": [url],
+                   "html": "https://ffcloud.s3.amazonaws.com/fetchfox-htmls/3v2ek2o503/https-earthquake-usgs-gov-earthquakes-map-extent-89-71968-79-80469-extent-89-71968-479-88281.html"
+               })
+           ]
+       )
+
+       workflow = fox_sdk._plan_extraction_from_prompt(url, instruction)
+
+       # Verify both requests were made
+       assert len(rsps.calls) == 2
+
+       # Verify the workflow was created correctly
+       assert workflow.to_dict() == expected_plan
+
 def test_extract__with_prompt(fox_sdk):
     raise NotImplementedError()
 
-def test_find_urls(fod_sdk):
+def test_find_urls(fox_sdk):
+    raise NotImplementedError()
+

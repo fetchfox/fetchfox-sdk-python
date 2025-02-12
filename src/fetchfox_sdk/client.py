@@ -182,7 +182,7 @@ class FetchFoxSDK:
 
             time.sleep(poll_interval)
 
-    def _plan_extraction_from_prompt(url, prompt):
+    def _plan_extraction_from_prompt(self, url: str, instruction: str) -> Workflow:
         # Get the HTML location first
         fetch_response = self._request('GET', f'fetch?{url}')
         html_url = fetch_response['html']
@@ -195,7 +195,7 @@ class FetchFoxSDK:
         })
 
         # Create workflow from the plan
-        workflow = Workflow.from_dict(plan_response)
+        return Workflow.from_dict(plan_response)
 
 
     def extract(self, url: str, instruction: Optional[str] = None,
