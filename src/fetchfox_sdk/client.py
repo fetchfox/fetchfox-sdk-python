@@ -36,10 +36,24 @@ class FetchFoxSDK:
             'Authorization': f'Bearer: {self.api_key}'
         }
 
-    def _request(self, method: str, path: str, json_data: Optional[dict] = None) -> dict:
-        """Make an API request."""
+    def _request(self, method: str, path: str, json_data: Optional[dict] = None,
+                    params: Optional[dict] = None) -> dict:
+        """Make an API request.
+
+        Args:
+            method: HTTP method
+            path: API path
+            json_data: Optional JSON body
+            params: Optional query string parameters
+        """
         url = urljoin(self.base_url, path)
-        response = requests.request(method, url, headers=self.headers, json=json_data)
+        response = requests.request(
+            method,
+            url,
+            headers=self.headers,
+            json=json_data,
+            params=params
+        )
         response.raise_for_status()
         return response.json()
 
@@ -185,7 +199,7 @@ class FetchFoxSDK:
     def _plan_extraction_from_url_and_prompt(self,
             url: str, instruction: str) -> Workflow:
 
-        fetch_response = self._request('GET', f'fetch?{url}')
+        fetch_response = self._request('GET', 'fetch', params={'url': url})
         html_url = fetch_response['html']
 
         plan_response = self._request('POST', 'plan/from-prompt', {
