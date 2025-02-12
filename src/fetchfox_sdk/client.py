@@ -159,7 +159,6 @@ class FetchFoxSDK:
 
             try:
                 status = self.get_job_status(job_id)
-                pprint(status)
 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
