@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any
 import json
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode
 import os
 from .workflow import Workflow
 
@@ -182,19 +182,18 @@ class FetchFoxSDK:
 
             time.sleep(poll_interval)
 
-    def _plan_extraction_from_prompt(self, url: str, instruction: str) -> Workflow:
-        # Get the HTML location first
+    def _plan_extraction_from_url_and_prompt(self,
+            url: str, instruction: str) -> Workflow:
+
         fetch_response = self._request('GET', f'fetch?{url}')
         html_url = fetch_response['html']
 
-        # Get the workflow plan
         plan_response = self._request('POST', 'plan/from-prompt', {
             "prompt": instruction,
             "urls": [url],
             "html": html_url
         })
 
-        # Create workflow from the plan
         return Workflow.from_dict(plan_response)
 
 
