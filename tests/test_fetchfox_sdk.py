@@ -82,7 +82,7 @@ def test_await_job_completion(fox_sdk):
         assert results == [{"name": "test"}]
         assert len(rsps.calls) == 2
 
-def test_extract_with_template(fox_sdk):
+def test_extract__with_template(fox_sdk):
     template = {"name": "What's the name?"}
 
     with responses.RequestsMock() as rsps:
@@ -118,3 +118,8 @@ def test_extract_with_template(fox_sdk):
         results = fox_sdk.extract("https://example.com", item_template=template)
         assert results == [{"name": "Test Item"}]
         assert len(rsps.calls) == 3
+
+def test_extract__with_prompt(fox_sdk):
+    raise NotImplementedError()
+
+def test_find_urls(fod_sdk):

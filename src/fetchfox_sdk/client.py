@@ -119,7 +119,10 @@ class FetchFoxSDK:
         return response['jobId']
 
     def get_job_status(self, job_id: str) -> dict:
-        """Get the status and results of a job.
+        """Get the status and results of a job.  Returns partial results before
+        eventually returning the full results.
+
+        When job_status['done'] == True, the full results are present.
 
         NOTE: Jobs are not created immediately after you call run_workflow().
         The status will not be available until the job is scheduled, so this
@@ -179,6 +182,22 @@ class FetchFoxSDK:
 
             time.sleep(poll_interval)
 
+    def _plan_extraction_from_prompt(url, prompt):
+        # Get the HTML location first
+        fetch_response = self._request('GET', f'fetch?{url}')
+        html_url = fetch_response['html']
+
+        # Get the workflow plan
+        plan_response = self._request('POST', 'plan/from-prompt', {
+            "prompt": instruction,
+            "urls": [url],
+            "html": html_url
+        })
+
+        # Create workflow from the plan
+        workflow = Workflow.from_dict(plan_response)
+
+
     def extract(self, url: str, instruction: Optional[str] = None,
                 item_template: Optional[Dict[str, str]] = None) -> List[Dict]:
         """Extract information from a webpage using AI."""
@@ -193,16 +212,14 @@ class FetchFoxSDK:
         if item_template:
             implied_workflow.extract(item_template)
         else:
-            # TODO:
-            #   GET /api/v2/fetch?{URL}
-            #   POST /api/v2/plan/from-prompt  -- give it a url/html/ returns workflow
-            raise NotImplementedError("Extraction with instruction not yet implemented")
+            implied_workflow = \
+                self._plan_extraction_from_url_and_prompt(
+                    url,
+                    instruction)
 
         job_id = self.run_workflow(workflow=implied_workflow)
         # The workflow will be registered and run, but in this convenience
         # function, the user doesn't care about that.
-
-        time.sleep(2) #TODO! If you attempt immediately, you get a 404.
 
         return self.await_job_completion(job_id)
 
