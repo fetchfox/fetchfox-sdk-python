@@ -27,20 +27,24 @@ def test_extract():
     """This only uses the questions->item_template form, as it is the actual
     workflow.  The instruction/prompt flow is only a convenience, and produces
     a workflow of this form."""
+
     template = {"name": "What's the name?", "price": "What's the price?"}
     w = (
         Workflow()
         .init("https://example.com")
         .extract(template)
     )
+
+    # I want to default to single=True and maxPages=1 and limit=None
     
     assert len(w._workflow["steps"]) == 2
     assert w._workflow["steps"][1] == {
         "name": "extract",
         "args": {
+            "limit": None,
             "questions": template,
-            "single": True, #TODO
-            "maxPages": 1 #TODO
+            "single": True,
+            "maxPages": 1
         }
     }
 
@@ -51,31 +55,16 @@ def test_find_urls():
         .init("https://example.com")
         .find_urls(instruction)
     )
-    
-    assert len(w._workflow["steps"]) == 2
-    assert w._workflow["steps"][1] == {
-        "name": "crawl",
-        "args": {
-            "query": instruction,
-            "maxPages": 1
-        }
-    }
 
-def test_find_urls__with_max_pages():
-    instruction = "Find all product links"
-    max_pages = 5
-    w = (
-        Workflow()
-        .init("https://example.com")
-        .find_urls(instruction, max_pages=max_pages)
-    )
+    # Default to maxpages 1, limit None
 
     assert len(w._workflow["steps"]) == 2
     assert w._workflow["steps"][1] == {
         "name": "crawl",
         "args": {
             "query": instruction,
-            "maxPages": max_pages
+            "maxPages": 1,
+            "limit": None
         }
     }
 
@@ -102,17 +91,43 @@ def test_limit__cannot_be_set_twice():
     with pytest.raises(ValueError):
         w.limit(10)
 
-
-def test_unique():
-    """Test unique configuration"""
+def test_filter():
+    """Test filter step configuration"""
+    instruction = "Exclude items over $100"
     w = (
         Workflow()
         .init("https://example.com")
-        .find_urls("Find product links")
-        .unique("url")
+        .extract({"price": "What's the price?"})
+        .filter(instruction)
     )
-    
-    assert w._options.get("uniqueBy") == "url"
+
+    assert len(w._workflow["steps"]) == 3
+    assert w._workflow["steps"][2] == {
+        "name": "filter",
+        "args": {
+            "query": instruction,
+            "limit": None
+        }
+    }
+
+def test_unique():
+    """Test unique step configuration"""
+    fields = ["url", "name"]
+    w = (
+        Workflow()
+        .init("https://example.com")
+        .find_urls("Find products")
+        .unique(fields)
+    )
+
+    assert len(w._workflow["steps"]) == 3
+    assert w._workflow["steps"][2] == {
+        "name": "unique",
+        "args": {
+            "fields": fields,
+            "limit": None
+        }
+    }
 
 def test_complex_chain():
     """Test a more complex chain of operations"""
@@ -136,14 +151,15 @@ def test_complex_chain():
                 "name": "const",
                 "args": {
                     "items": [{"url": url}],
-                    "maxPages": 1
+                    "maxPages": 1,
                 }
             },
             {
                 "name": "crawl",
                 "args": {
                     "query": find_urls_instructions,
-                    "maxPages": 1
+                    "maxPages": 1,
+                    "limit": None
                 }
             },
             {
@@ -151,7 +167,8 @@ def test_complex_chain():
                 "args": {
                     "questions": template,
                     "single": True, #TODO
-                    "maxPages": 1
+                    "maxPages": 1,
+                    "limit": None
                 }
             }
         ]
@@ -160,6 +177,37 @@ def test_complex_chain():
     actual = w.to_dict()
     assert actual["steps"] == expected["steps"]
     assert actual['options']['limit'] == limit
+
+def test_all__steps_can_have_limit_parameter():
+    """Test that each step type can have its own limit parameter"""
+    w = (
+        Workflow()
+        .init("https://example.com")
+        .find_urls("Find products", limit=5)
+        .extract({"name": "What's the name?"}, limit=4)
+        .filter("Exclude expensive items", limit=3)
+        .unique(["name"], limit=2)
+    )
+
+    steps = w.to_dict()["steps"]
+    assert len(steps) == 5
+    assert steps[1]["args"]["limit"] == 5  # find_urls limit
+    assert steps[2]["args"]["limit"] == 4  # extract limit
+    assert steps[3]["args"]["limit"] == 3  # filter limit
+    assert steps[4]["args"]["limit"] == 2  # unique limit
+
+def test_transform_type_steps__can_have_max_pages():
+    """Test that max_pages parameter works for supported steps"""
+    w = (
+        Workflow()
+        .init("https://example.com")
+        .find_urls("Find products", max_pages=5)
+        .extract({"name": "What's the name?"}, max_pages=4)
+    )
+
+    steps = w.to_dict()["steps"]
+    assert steps[1]["args"]["maxPages"] == 5  # find_urls max_pages
+    assert steps[2]["args"]["maxPages"] == 4  # extract max_pages
 
 def test_from_json():
     """Test creating workflow from JSON"""
@@ -206,3 +254,21 @@ def test_to_dict():
     assert "options" in result
     assert result["options"]["limit"] == 5
     assert len(result["steps"]) == 2
+
+
+# TODO: More meaningful tests, pertain to validation that we might like to help
+# users with:
+#   - test_unique_requires_prior_data_producing_step: unique can't be first step
+#   - test_filter_requires_prior_data_producing_step: similar to unique
+#   - test_init_must_be_first: all workflows should start with init
+#   - test_workflow_validation: when implemented, test that invalid workflows are caught
+#       - missing required fields
+#       - invalid step combinations
+#       - steps in illogical order
+#   - test_extract_requires_valid_template: ensure template is dict with string values
+#   - Maximum instruction lengths?
+
+# In terms of dev-experience, we should consider how problems are coming back from
+# the API.  It may make more sense to design carefully, once, in the API, and then
+# all the potential SDKs just have to pass sensible, descriptive errors
+# faithfully back to the users
