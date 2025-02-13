@@ -145,7 +145,8 @@ class FetchFoxSDK:
         """Get the status and results of a job.  Returns partial results before
         eventually returning the full results.
 
-        When job_status['done'] == True, the full results are present.
+        When job_status['done'] == True, the full results are present in
+        response['results']['items'].
 
         If you want to manage your own polling, you can use this instead of
         await_job_completion()
@@ -157,7 +158,7 @@ class FetchFoxSDK:
         return self._request('GET', f'jobs/{job_id}')
 
     def await_job_completion(self, job_id: str, poll_interval: float = 5.0,
-            full_response: bool = False):
+            full_response: bool = False, keep_urls: bool = False):
         """Wait for a job to complete and return the resulting items or full
         response.
 
@@ -167,6 +168,7 @@ class FetchFoxSDK:
             job_id: the id of the job, as returned by run_workflow()
             poll_interval: in seconds
             full_response: defaults to False, so we return the result_items only.  Pass full_response=True if you want to access the entire body of the final response.
+            keep_urls: defaults to False so result items match the given item template.  Set to true to include the "_url" property.  Not necessary if _url is the ONLY key.
         """
 
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
@@ -191,6 +193,7 @@ class FetchFoxSDK:
                                 f"Job {job_id} is taking unusually long to schedule.")
 
                     status = {}
+
                 else:
                     raise
 
@@ -198,21 +201,29 @@ class FetchFoxSDK:
                 if full_response:
                     return status
 
+                # Otherwise, process the status into result items that match
+                # the item_template (optionally retaining _url for find_urls())
                 try:
                     full_items = status['results']['items']
                 except KeyError:
                     print("No results.")
                     return None
 
-                stripped_items = [
-                    {
+                stripped_items = []
+                for item in full_items:
+                    # First get just the non-underscore keys
+                    filtered_item = {
                         k: v
                         for k, v
                         in item.items()
-                        if (not k.startswith('_') or k == "_url")
+                        if not k.startswith('_')
                     }
-                    for item in full_items
-                ]
+
+                    # Keep _url if explicitly requested OR if we have no other keys
+                    if (keep_urls or not filtered_item) and '_url' in item:
+                        filtered_item['_url'] = item['_url']
+
+                    stripped_items.append(filtered_item)
 
                 return stripped_items
 
@@ -301,7 +312,8 @@ class FetchFoxSDK:
         # The workflow will be registered and run, but in this convenience
         # function, the user doesn't care about that.
 
-        return self.await_job_completion(job_id)
+        result_items = self.await_job_completion(job_id)
+        return result_items
 
     def find_urls(self, url: str, instruction: str, max_pages: int = 1,
             limit=None) -> List[str]:
@@ -328,5 +340,5 @@ class FetchFoxSDK:
         )
 
         job_id = self.run_workflow(workflow=implied_workflow)
-        urls_as_items = self.await_job_completion(job_id)
+        urls_as_items = self.await_job_completion(job_id, keep_urls=True)
         return [ item['_url'] for item in urls_as_items ]
