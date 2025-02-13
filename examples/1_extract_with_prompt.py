@@ -32,5 +32,6 @@ pprint(convenient_results)
 
 # It's great that we're able to extract the required information from just
 # a prompt!
+
 # It would be helpful to constrain the output format into something consistent
-# So let's describe the item format we want (in ex2)
+# So let's describe the item format we want (in example #2)
