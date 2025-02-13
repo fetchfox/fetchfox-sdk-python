@@ -214,8 +214,37 @@ class FetchFoxSDK:
 
 
     def extract(self, url: str, instruction: Optional[str] = None,
-                item_template: Optional[Dict[str, str]] = None) -> List[Dict]:
-        """Extract information from a webpage using AI."""
+                item_template: Optional[Dict[str, str]] = None,
+                single=False, max_pages=1, limit=None) -> List[Dict]:
+        """Extract items from a given URL, given either a prompt or a template.
+
+        An instructional prompt is just natural language instruction describing
+        the desired results.
+
+        The options "single", "max_pages", and "limit" may NOT be given with
+        "instruction". These options may only be provided with an item template.
+
+        An item template is a dictionary where the keys are the desired
+        output fieldnames and the values are the instructions for extraction of
+        that field.
+
+        Example item template:
+        {
+            "magnitude": "What is the magnitude of this earthquake?",
+            "location": "What is the location of this earthquake?",
+            "time": "What is the time of this earthquake?"
+        }
+
+        To follow pagination, provide max_pages > 1.
+
+        Args:
+            instruction: an instructional prompt as described above
+            item_template: the item template described above
+            single: Defaults to False. Set this to True if each URL has only a single item to extract.
+            max_pages: enable pagination from the given URL.  Defaults to one page only.
+            limit: limit the number of items yielded by this step
+        """
+
         if item_template and instruction:
             raise ValueError(
                 "Please provide either an item_template or a prompt, but not both.")
@@ -225,8 +254,24 @@ class FetchFoxSDK:
         implied_workflow = Workflow().init(url)
 
         if item_template:
-            implied_workflow.extract(item_template)
+            implied_workflow.extract(
+                item_template,
+                single=single,
+                max_pages=max_pages,
+                limit=limit
+            )
         else:
+            # if these options are set to anything other than their defaults,
+            # warn, because they are not being respected.
+            # We could also throw an error here.
+
+            if single:
+                print("Warning: 'single' will be ignored in instruction mode.")
+            if max_pages != 1:
+                print("Warning: 'max_pages' will be ignored in instruction mode.")
+            if limit is not None:
+                print("Warning: 'limit' will be ignored in instruction mode.")
+
             implied_workflow = \
                 self._plan_extraction_from_url_and_prompt(
                     url,
