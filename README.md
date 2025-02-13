@@ -5,14 +5,25 @@ FetchFox uses AI to power flexible scraping workflows.
 
 ## Installation
 
-### From GitHub
+### Into a Fresh Venv, for a new project
 ```bash
-pip install git+https://github.com/yourusername/fetchfox-sdk.git
+git clone git@github.com:hephaestus-klytotekhnes/fetchfox-sdk-python.git
+cd fetchfox-sdk-python
+python -m venv venv
+source ./venv/bin/activate
+pip install .
+
+export FETCHFOX_API_KEY=$YOUR_KEY_HERE
+
+# Try an example:
+cd examples/
+python 1_extract_with_prompt.py
+
 ```
 
-### From local directory
+### From GitHub
 ```bash
-pip install .
+pip install git+git@github.com:hephaestus-klytotekhnes/fetchfox-sdk-python.git
 ```
 
 ### From zip file
