@@ -119,6 +119,9 @@ class FetchFoxSDK:
             # TODO:
             #   It sounds like these might be passed in the const/init step?
             #   Or, maybe they need to go in as a dictionary on the side?
+            # TODO:
+            #   https://docs.google.com/document/d/17ieru_HfU3jXBilcZqL1Ksf27rsVPvOIQ8uxmHi2aeE/edit?disco=AAABdjyFjgw
+            #   allow list-expansion here like above, pretty cool
 
         if workflow_id is None:
             workflow_id = self.register_workflow(workflow) # type: ignore
