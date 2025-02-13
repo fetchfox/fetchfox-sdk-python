@@ -120,6 +120,14 @@ class FetchFoxSDK:
             raise ValueError(
                 "Provide only a workflow or a workflow_id, not both.")
 
+        if workflow and not isinstance(workflow, Workflow):
+            raise ValueError(
+                "The workflow argument must be a fetchfox_sdk.Workflow")
+        if workflow_id and not isinstance(workflow_id, str):
+            raise ValueError(
+                "The workflow_id argument must be a string "
+                "representing a registered workflow's ID")
+
         if params is not None:
             raise NotImplementedError("Cannot pass params to workflows yet")
             # TODO:
