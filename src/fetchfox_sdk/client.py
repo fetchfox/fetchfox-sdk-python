@@ -3,12 +3,13 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any
 import json
+from pprint import pformat
 from urllib.parse import urljoin, urlencode
 import os
+import logging
 from .workflow import Workflow
 
-#DBG:
-from pprint import pprint
+logger = logging.getLogger('fetchfox')
 
 _API_PREFIX = "/api/v2/"
 
@@ -47,6 +48,7 @@ class FetchFoxSDK:
             params: Optional query string parameters
         """
         url = urljoin(self.base_url, path)
+
         response = requests.request(
             method,
             url,
@@ -54,8 +56,12 @@ class FetchFoxSDK:
             json=json_data,
             params=params
         )
+
         response.raise_for_status()
-        return response.json()
+        body = response.json()
+
+        logger.debug(f"Response from %s %s:\n%s", method, path, pformat(body))
+        return body
 
     def register_workflow(self, workflow: Workflow) -> str:
         """Create a new workflow.
@@ -125,7 +131,7 @@ class FetchFoxSDK:
 
         if workflow_id is None:
             workflow_id = self.register_workflow(workflow) # type: ignore
-            print(f"Registered new workflow with id: {workflow_id}")
+            logger.info("Registered new workflow with id: %s", workflow_id)
 
         #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
         response = self._request('POST', f'workflows/{workflow_id}/run')
@@ -141,6 +147,9 @@ class FetchFoxSDK:
 
         When job_status['done'] == True, the full results are present.
 
+        If you want to manage your own polling, you can use this instead of
+        await_job_completion()
+
         NOTE: Jobs are not created immediately after you call run_workflow().
         The status will not be available until the job is scheduled, so this
         will 404 initially.
@@ -153,9 +162,14 @@ class FetchFoxSDK:
         response.
 
         Use "get_job_status()" if you want to manage polling yourself.
+
+        Args:
+            job_id: the id of the job, as returned by run_workflow()
+            poll_interval: in seconds
+            full_response: defaults to False, so we return the result_items only.  Pass full_response=True if you want to access the entire body of the final response.
         """
 
-        MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5
+        MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
 
         while True:
@@ -165,7 +179,8 @@ class FetchFoxSDK:
 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    print("Waiting for job to be scheduled.")
+
+                    logger.info("Waiting for job %s to be scheduled.", job_id)
 
                     if started_waiting_for_job_dt is None:
                         started_waiting_for_job_dt = datetime.now()
@@ -190,7 +205,12 @@ class FetchFoxSDK:
                     return None
 
                 stripped_items = [
-                    {k: v for k, v in item.items() if not k.startswith('_')}
+                    {
+                        k: v
+                        for k, v
+                        in item.items()
+                        if (not k.startswith('_') or k == "_url")
+                    }
                     for item in full_items
                 ]
 
@@ -283,13 +303,30 @@ class FetchFoxSDK:
 
         return self.await_job_completion(job_id)
 
-    def find_urls(self, url: str, instruction: str, max_pages: int = 1) -> List[Dict[str, str]]:
-        """Find URLs on a webpage using AI."""
+    def find_urls(self, url: str, instruction: str, max_pages: int = 1,
+            limit=None) -> List[str]:
+        """Find URLs on a webpage using AI, given an instructional prompt.
+
+         An instructional prompt is just natural language instruction describing
+        the desired results.
+
+        Example Instructional Prompts:
+            "Find me all the links to bicycles that are not electric 'e-bikes'"
+            "Find me the links to each product detail page."
+            "Find me the links for each US State"
+            "Find me the links to the profiles for employees among the C-Suite"
+
+        Args:
+            instruction: an instructional prompt as described above
+            max_pages: provide an integer > 1 if you want to follow pagination
+            limit: limits the number of items yielded by this step
+        """
         implied_workflow = (
             Workflow()
             .init(url)
-            .find_urls(instruction, max_pages=max_pages)
+            .find_urls(instruction, max_pages=max_pages, limit=limit)
         )
 
         job_id = self.run_workflow(workflow=implied_workflow)
-        return self.await_job_completion(job_id)
+        urls_as_items = self.await_job_completion(job_id)
+        return [ item['_url'] for item in urls_as_items ]
