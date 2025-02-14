@@ -1,3 +1,23 @@
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "fetchfox"
+version = "0.0.3"
+authors = [
+  { name="Thomas Ferrell", email="thomas@fetchfoxai.com" },
+]
+description = "Python SDK for the FetchFox API."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = { file = "LICENSE" }
+
+[project.urls]
+Homepage = "https://fetchfox.ai"
+Documentation = "https://github.com/fetchfox/fetchfox-sdk-python/tree/main/documentation"
+Source = "https://github.com/fetchfox/fetchfox-sdk-python"
