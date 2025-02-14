@@ -3,25 +3,13 @@ Python library for the Fetchfox API.
 
 FetchFox uses AI to power flexible scraping workflows.
 
+NOTE: This interface is currently subject to change as we respond to early feedback.
+
 ## Installation
 
-### Into a Fresh Venv, for a new project
-```bash
-git clone git@github.com:hephaestus-klytotekhnes/fetchfox-sdk-python.git
-cd fetchfox-sdk-python
-python -m venv venv
-source ./venv/bin/activate
-pip install .
-
-export FETCHFOX_API_KEY=$YOUR_KEY_HERE
-
-# Try an example:
-cd examples/
-python 1_extract_with_prompt.py
-
-```
 ### Via PyPI
-Coming soon!
+
+`pip install fetchfox-sdk`
 
 ## Quick Start
 ```python
@@ -47,3 +35,5 @@ urls = fox.find_urls(
 
 ### Examples
 Check out the `examples` folder for some typical usages.
+
+[https://github.com/fetchfox/fetchfox-sdk-python/tree/main/examples](https://github.com/fetchfox/fetchfox-sdk-python/tree/main/examples)
