@@ -3,6 +3,9 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
+dependencies = [
+    "requests>=2.22.0"
+]
 name = "fetchfox-sdk"
 version = "0.0.3"
 authors = [
@@ -21,3 +24,9 @@ license = { file = "LICENSE" }
 Homepage = "https://fetchfox.ai"
 Documentation = "https://github.com/fetchfox/fetchfox-sdk-python/tree/main/documentation"
 Source = "https://github.com/fetchfox/fetchfox-sdk-python"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.4",
+    "responses>=0.25.6"
+]
