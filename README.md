@@ -20,16 +20,8 @@ cd examples/
 python 1_extract_with_prompt.py
 
 ```
-
-### From GitHub
-```bash
-pip install git+git@github.com:hephaestus-klytotekhnes/fetchfox-sdk-python.git
-```
-
-### From zip file
-```bash
-pip install fetchfox_sdk-0.1.0.zip
-```
+### Via PyPI
+Coming soon!
 
 ## Quick Start
 ```python
@@ -46,7 +38,7 @@ results = fox.extract(
 )
 
 # Find specific URLs
-urls = fox.crawl(
+urls = fox.find_urls(
     url="https://example.com",
     instruction="Find all product detail pages"
 )

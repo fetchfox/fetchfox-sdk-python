@@ -9,3 +9,5 @@ For `requests` I've chosen >=v2.22.0, since that happens to be what's packaged
 in Ubuntu 20.04 as `python3-requests`.  Technically, Ubuntu 14.04 is still in
 Legacy support, but `packages.ubuntu.com` doesn't search anything older than 20.04.
 
+`pydoc-markdown -p src/fetchfox_sdk > doc.md`
+`pdoc --html src/fetchfox_sdk`

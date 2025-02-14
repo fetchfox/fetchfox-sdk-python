@@ -17,8 +17,10 @@ class FetchFoxSDK:
     def __init__(self, api_key: Optional[str] = None, host: str = "https://fetchfox.ai"):
         """Initialize the FetchFox SDK.
 
+        You may also provide an API key in the environment variable `FETCHFOX_API_KEY`.
+
         Args:
-            api_key: Your FetchFox API key
+            api_key: Your FetchFox API key.  Overrides the environment variable.
             host: API host URL (defaults to production)
         """
         self.base_url = urljoin(host, _API_PREFIX)
@@ -97,7 +99,7 @@ class FetchFoxSDK:
         or provide a workflow object (which will be registered
         automatically, for convenience).
 
-        You can browse https://fetcfox.ai to find publicly available workflows
+        You can browse https://fetchfox.ai to find publicly available workflows
         authored by others.  Copy the workflow ID and use it here.  Often,
         in this case, you will also want to provide parameters.
 
