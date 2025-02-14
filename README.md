@@ -42,4 +42,8 @@ urls = fox.find_urls(
     url="https://example.com",
     instruction="Find all product detail pages"
 )
+
 ```
+
+### Examples
+Check out the `examples` folder for some typical usages.
