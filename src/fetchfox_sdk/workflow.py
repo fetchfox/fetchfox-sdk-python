@@ -16,9 +16,66 @@ class Workflow:
             "options": {}
         }
 
+        self._results = None
+        self._ran_job_id = None
+
+    @property
+    def results(self):
+        """Get the results, executing the query if necessary.
+        """
+        if self._results is not None:
+            return self._results
+        else:
+            self.run()
+            return self._results
+
+    def __iter__(self):
+        """Make the workflow iterable.
+        Accessing the results property will execute the workflow if necessary.
+        """
+        return iter(self.results)
+
+    def __getitem__(self, key):
+        """Allow indexing into the workflow results.
+        Accessing the results property will execute the workflow if necessary.
+
+        Args:
+            key: Can be an integer index or a slice
+        """
+        return self.results[key]
+
+    def __bool__(self):
+        """Return True if the workflow has any results, False otherwise.
+        Accessing the results property will execute the workflow if necessary.
+        """
+        return bool(self.results)
+
+    def __len__(self):
+        """Return the number of results.
+        Accessing the results property will execute the workflow if necessary.
+        """
+        return len(self.results)
+
+    def __contains__(self, item):
+        """Check if an item exists in the results.
+        Accessing the results property will execute the workflow if necessary.
+        """
+        return item in self.results
+
+    def run(self) -> List[Dict]:
+        """Execute the workflow and return results."""
+        logger.debug("Running workflow.")
+        job_id = self._sdk.run_workflow(workflow=self)
+        results = self._sdk.await_job_completion(job_id)
+        if results is None or len(results) == 0:
+            print("This workflow did not return any results.")
+        self._ran_job_id = job_id
+        self._results = results
+
     def init(self, url: str) -> "Workflow":
 
         #TODO: Do we need to allow other data here, params?
+        #TODO: if used more than once, raise error and print helpful message
 
         self._workflow["steps"].append({
             "name": "const",
@@ -31,11 +88,6 @@ class Workflow:
 
     def configure_params(self, params) -> "Workflow":
         raise NotImplementedError()
-
-    def run(self) -> List[Dict]:
-        """Execute the workflow and return results."""
-        job_id = self._sdk.run_workflow(workflow=self)
-        return self._sdk.await_job_completion(job_id)
 
     def export(self, filename: str, force_overwrite: bool = False) -> None:
         """Execute workflow and save results to file.
@@ -56,24 +108,27 @@ class Workflow:
             raise FileExistsError(
                 f"File {filename} already exists. Use force_overwrite=True to overwrite.")
 
-        results = self.run()
-
-        if not results:
-            raise RuntimeError("Workflow produced no results")
+        if not self.results: #accessing this property will cache the results
+            if not self._ran_job_id:
+                raise RuntimeError(
+                    "No results and no job_id - "
+                    "there may have been an uncaught problem running the job.")
+            else:
+                raise RuntimeError("Workflow produced no results")
 
         if filename.endswith('.csv'):
             fieldnames = set()
-            for item in results:
+            for item in self.results:
                 fieldnames.update(item.keys())
 
             with open(filename, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=sorted(fieldnames))
                 writer.writeheader()
-                writer.writerows(results)
+                writer.writerows(self.results)
 
         else:
             with open(filename, 'w') as f:
-                for item in results:
+                for item in self.results:
                     f.write(json.dumps(item) + '\n')
 
 

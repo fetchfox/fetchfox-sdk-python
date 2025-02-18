@@ -172,7 +172,7 @@ class FetchFoxSDK:
             raise ValueError(
                 "Provide only a workflow or a workflow_id, not both.")
 
-        if workflow and not isinstance(workflow, Workflow):
+        if workflow is not None and not isinstance(workflow, Workflow):
             raise ValueError(
                 "The workflow argument must be a fetchfox_sdk.Workflow")
         if workflow_id and not isinstance(workflow_id, str):
