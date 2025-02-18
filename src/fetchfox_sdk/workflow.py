@@ -21,11 +21,15 @@ class Workflow:
         #TODO: maybe this should not be here at all, might confuse.
         return workflow
 
-    def __init__(self):
+    def __init__(self, sdk_context):
+
+        self.sdk_context = sdk_context
+
         self._workflow = {
             "steps": [],
             "options": {}
         }
+
 
     def init(self, url: str) -> "Workflow":
 
@@ -48,11 +52,15 @@ class Workflow:
         The keys of this template are the fieldnames,
         and the values are the instructions for extracting that field.
 
-        Example:
+        Examples:
         {
             "magnitude": "What is the magnitude of this earthquake?",
             "location": "What is the location of this earthquake?",
             "time": "What is the time of this earthquake?"
+        }
+
+        {
+            "url": "Find me the URL  "
         }
 
         Args:

@@ -65,6 +65,34 @@ class FetchFoxSDK:
         logger.debug(f"Response from %s %s:\n%s", method, path, pformat(body))
         return body
 
+    def workflow(self, url: str = None, params:dict = None) -> "Workflow":
+        """Create a new workflow using this SDK instance
+
+        Optionally, a URL and/or params may be passed here to initialize
+        the workflow with them.
+
+        Workflow parameters are given in a dictionary.  E.g. if your workflow
+        has a `{{state_name}}` parameter, you might pass:
+
+            { 'state_name': 'Alaska' }
+
+        or perhaps
+
+            { 'state_name': ['Alaska', 'Hawaii'] }
+
+        if you wish to run the workflow for both states and collect the results.
+
+
+        Args:
+            url: URL to start from
+            params: Workflow parameters.
+        """
+        if url or params:
+            raise NotImplementedError()
+
+        return Workflow(self) # url=url, params=params)
+
+
     def register_workflow(self, workflow: Workflow) -> str:
         """Create a new workflow.
 
