@@ -65,6 +65,9 @@ class Workflow:
 
     def _clone(self):
         """Create a new instance with copied workflow but no results"""
+
+        #TODO: If there are results, can we simply pass them as consts?
+
         new_instance = Workflow(self._sdk)
         new_instance._workflow = copy.deepcopy(self._workflow)
         return new_instance
@@ -168,16 +171,14 @@ class Workflow:
             limit: limit the number of items yielded by this step
         """
 
-        #TODO: call it "multiple" and default to false?  semantically clearer?
-        #TODO: view: selecthtml / textonly
-
         new_instance = self._clone()
 
         if single is None:
-            single = True
+            single = False
             self._sdk.nqprint(
-                "Extracting only a single item per page in this workflow.  "
-                "Pass `single=False` to extract multiple result items per page")
+                "Extracting multiple items per page in this workflow. "
+                "Pass `single=True` to extract only a single result item per page."
+                "")
 
         new_instance._workflow["steps"].append({
             "name": "extract",

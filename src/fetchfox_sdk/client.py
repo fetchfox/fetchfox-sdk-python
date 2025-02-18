@@ -98,7 +98,7 @@ class FetchFoxSDK:
         """
         w = Workflow(self)
         if url:
-            w.init(url)
+            w = w.init(url)
         if params:
             w.configure_params(params)
 
@@ -233,13 +233,13 @@ class FetchFoxSDK:
 
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
+        self.nqprint("Waiting for job to finish: ")
 
         while True:
 
             try:
                 status = self.get_job_status(job_id)
-                self.nqprint("Waiting for job to finish: ")
-
+                self.nqprint(".", end="")
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
 
@@ -257,8 +257,6 @@ class FetchFoxSDK:
 
                 else:
                     raise
-
-            self.nqprint(".", end="")
 
             if status.get('done'):
                 self.nqprint("\n")
