@@ -1,39 +1,23 @@
 import json
+import csv
 from typing import Optional, Dict, Any, List
 import logging
+
 logger = logging.getLogger('fetchfox')
 
 class Workflow:
-    @classmethod
-    def from_json(cls, json_str: str) -> "Workflow":
-        """Create a workflow from a JSON string."""
-        workflow_dict = json.loads(json_str)
-        workflow = cls()
-        workflow._workflow = workflow_dict
-        return workflow
-
-    @classmethod
-    def from_dict(cls, workflow_dict: dict) -> "Workflow":
-        """Create a workflow from a dictionary."""
-        workflow = cls()
-        workflow._workflow = workflow_dict
-        #TODO: We could actually implement validation in __init__
-        #TODO: maybe this should not be here at all, might confuse.
-        return workflow
-
     def __init__(self, sdk_context):
 
-        self.sdk_context = sdk_context
+        self._sdk = sdk_context
 
         self._workflow = {
             "steps": [],
             "options": {}
         }
 
-
     def init(self, url: str) -> "Workflow":
 
-        #TODO: Do we need to allow other data here?
+        #TODO: Do we need to allow other data here, params?
 
         self._workflow["steps"].append({
             "name": "const",
@@ -43,6 +27,44 @@ class Workflow:
             }
         })
         return self
+
+    def configure_params(self, params) -> "Workflow":
+        raise NotImplementedError()
+
+    def run(self) -> List[Dict]:
+        """Execute the workflow and return results."""
+        job_id = self._sdk.run_workflow(workflow=self)
+        return self._sdk.await_job_completion(job_id)
+
+    def export(self, filename: str) -> None:
+        """Execute workflow and save results to file.
+
+        Args:
+            filename: If the filename ends with .csv a CSV file is produced.  Otherwise a JSONL file is written.
+        """
+        if not (filename.endswith('.csv') or filename.endswith('.jsonl')):
+            raise ValueError("Output filename must end with .csv or .jsonl")
+
+        results = self.run()
+
+        if not results:
+            raise RuntimeError("Workflow produced no results")
+
+        if filename.endswith('.csv'):
+            fieldnames = set()
+            for item in results:
+                fieldnames.update(item.keys())
+
+            with open(filename, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=sorted(fieldnames))
+                writer.writeheader()
+                writer.writerows(results)
+
+        else:
+            with open(filename, 'w') as f:
+                for item in results:
+                    f.write(json.dumps(item) + '\n')
+
 
     def extract(self, item_template: dict, single=None,
             limit=None, max_pages=1) -> "Workflow":
@@ -60,7 +82,7 @@ class Workflow:
         }
 
         {
-            "url": "Find me the URL  "
+            "url": "Find me the URLs of the product detail pages."
         }
 
         Args:
@@ -76,7 +98,7 @@ class Workflow:
 
         if single is None:
             single = True
-            print(
+            self._sdk.nqprint(
                 "Extracting only a single item per page in this workflow.  "
                 "Pass `single=False` to extract multiple result items per page")
 

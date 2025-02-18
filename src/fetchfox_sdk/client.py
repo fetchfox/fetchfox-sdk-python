@@ -14,7 +14,9 @@ logger = logging.getLogger('fetchfox')
 _API_PREFIX = "/api/v2/"
 
 class FetchFoxSDK:
-    def __init__(self, api_key: Optional[str] = None, host: str = "https://fetchfox.ai"):
+    def __init__(self,
+            api_key: Optional[str] = None, host: str = "https://fetchfox.ai",
+            quiet=False):
         """Initialize the FetchFox SDK.
 
         You may also provide an API key in the environment variable `FETCHFOX_API_KEY`.
@@ -22,6 +24,7 @@ class FetchFoxSDK:
         Args:
             api_key: Your FetchFox API key.  Overrides the environment variable.
             host: API host URL (defaults to production)
+            quiet: set to True to suppress printing
         """
         self.base_url = urljoin(host, _API_PREFIX)
 
@@ -38,6 +41,8 @@ class FetchFoxSDK:
             'Content-Type': 'application/json',
             'Authorization': f'Bearer: {self.api_key}'
         }
+
+        self.quiet = False
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
                     params: Optional[dict] = None) -> dict:
@@ -65,6 +70,10 @@ class FetchFoxSDK:
         logger.debug(f"Response from %s %s:\n%s", method, path, pformat(body))
         return body
 
+    def nqprint(self, *args, **kwargs):
+        if not self.quiet:
+            print(*args, **kwargs)
+
     def workflow(self, url: str = None, params:dict = None) -> "Workflow":
         """Create a new workflow using this SDK instance
 
@@ -87,11 +96,24 @@ class FetchFoxSDK:
             url: URL to start from
             params: Workflow parameters.
         """
-        if url or params:
-            raise NotImplementedError()
+        w = Workflow(self)
+        if url:
+            w.init(url)
+        if params:
+            w.configure_params(params)
 
-        return Workflow(self) # url=url, params=params)
+        return w
 
+    def workflow_from_json(self, json_workflow) -> "Workflow":
+        raise NotImplementedError()
+
+    def workflow_by_id(self, workflow_id) -> "Workflow":
+        """Use a public workflow ID
+
+        Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")
+
+        """
+        raise NotImplementedError()
 
     def register_workflow(self, workflow: Workflow) -> str:
         """Create a new workflow.
@@ -216,6 +238,7 @@ class FetchFoxSDK:
 
             try:
                 status = self.get_job_status(job_id)
+                self.nqprint("Waiting for job to finish: ")
 
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
@@ -235,7 +258,11 @@ class FetchFoxSDK:
                 else:
                     raise
 
+            self.nqprint(".", end="")
+
             if status.get('done'):
+                self.nqprint("\n")
+
                 if full_response:
                     return status
 
@@ -244,7 +271,7 @@ class FetchFoxSDK:
                 try:
                     full_items = status['results']['items']
                 except KeyError:
-                    print("No results.")
+                    nqprint("No results.")
                     return None
 
                 stripped_items = []
@@ -335,11 +362,11 @@ class FetchFoxSDK:
             # We could also throw an error here.
 
             if single:
-                print("Warning: 'single' will be ignored in instruction mode.")
+                nqprint("Warning: 'single' will be ignored in instruction mode.")
             if max_pages != 1:
-                print("Warning: 'max_pages' will be ignored in instruction mode.")
+                nqprint("Warning: 'max_pages' will be ignored in instruction mode.")
             if limit is not None:
-                print("Warning: 'limit' will be ignored in instruction mode.")
+                nqprint("Warning: 'limit' will be ignored in instruction mode.")
 
             implied_workflow = \
                 self._plan_extraction_from_url_and_prompt(
