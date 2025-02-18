@@ -1,4 +1,5 @@
 import os
+import copy
 import json
 import csv
 from typing import Optional, Dict, Any, List
@@ -62,6 +63,12 @@ class Workflow:
         """
         return item in self.results
 
+    def _clone(self):
+        """Create a new instance with copied workflow but no results"""
+        new_instance = Workflow(self._sdk)
+        new_instance._workflow = copy.deepcopy(self._workflow)
+        return new_instance
+
     def run(self) -> List[Dict]:
         """Execute the workflow and return results."""
         logger.debug("Running workflow.")
@@ -77,14 +84,16 @@ class Workflow:
         #TODO: Do we need to allow other data here, params?
         #TODO: if used more than once, raise error and print helpful message
 
-        self._workflow["steps"].append({
+        new_instance = self._clone()
+
+        new_instance._workflow["steps"].append({
             "name": "const",
             "args": {
                 "items": [{"url": url}],
                 "maxPages": 1 #TODO
             }
         })
-        return self
+        return new_instance
 
     def configure_params(self, params) -> "Workflow":
         raise NotImplementedError()
@@ -162,13 +171,15 @@ class Workflow:
         #TODO: call it "multiple" and default to false?  semantically clearer?
         #TODO: view: selecthtml / textonly
 
+        new_instance = self._clone()
+
         if single is None:
             single = True
             self._sdk.nqprint(
                 "Extracting only a single item per page in this workflow.  "
                 "Pass `single=False` to extract multiple result items per page")
 
-        self._workflow["steps"].append({
+        new_instance._workflow["steps"].append({
             "name": "extract",
             "args": {
                 "questions": item_template,
@@ -177,40 +188,18 @@ class Workflow:
                 "limit": limit
             }
         })
-        return self
 
-    def find_urls(self, instruction: str, max_pages=1, limit=None) -> "Workflow":
-        """Provide instructions which describe how to find the URLs
-        you want to extract from the page.
-
-        Example: "Find me all of the links to the detail pages for individual
-        earthquakes."
-
-        Args:
-            instruction: the instruction described above
-            max_pages: enable pagination from the given URL.  Defaults to one page only.
-            limit: limit the number of items yielded by this step
-        """
-        self._workflow["steps"].append({
-            "name": "crawl",
-            "args": {
-                "query": instruction,
-                "maxPages": max_pages,
-                "limit": limit
-            }
-        })
-        return self
+        return new_instance
 
     def limit(self, n: int) -> "Workflow":
         if self._workflow['options'].get('limit') is not None:
             raise ValueError(
                 "This limit is per-workflow, and may only be set once.")
 
-        self._workflow['options']["limit"] = n
-        return self
-
-    #TODO: `transform()` as the underlying operation for extract AND findUrls
-    #TODO: crawl
+        #TODO: if there are results, I think we could actually carry them through?
+        new_instance = self._clone()
+        new_instance._workflow['options']["limit"] = n
+        return new_instance
 
     def unique(self, fields_list: List[str], limit=None) -> "Workflow":
         """Provide a list of fields which will be used to check the uniqueness
@@ -223,8 +212,9 @@ class Workflow:
             fields_list: the instruction described above
             limit: limit the number of items yielded by this step
         """
+        new_instance = self._clone()
 
-        self._workflow['steps'].append({
+        new_instance._workflow['steps'].append({
             "name": "unique",
             "args": {
                 "fields": fields_list,
@@ -232,7 +222,7 @@ class Workflow:
             }
         })
 
-        return self
+        return new_instance
 
     def filter(self, instruction: str, limit=None) -> "Workflow":
         """Provide instructions for how to filter items.
@@ -243,8 +233,8 @@ class Workflow:
             instruction: the instruction described above
             limit: limit the number of items yielded by this step
         """
-
-        self._workflow['steps'].append({
+        new_instance = self._clone()
+        new_instance._workflow['steps'].append({
             "name": "filter",
             "args": {
                 "query": instruction,
@@ -252,7 +242,7 @@ class Workflow:
             }
         })
 
-        return self
+        return new_instance
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert workflow to dictionary format."""
