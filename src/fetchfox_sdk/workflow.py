@@ -1,3 +1,4 @@
+import os
 import json
 import csv
 from typing import Optional, Dict, Any, List
@@ -36,14 +37,24 @@ class Workflow:
         job_id = self._sdk.run_workflow(workflow=self)
         return self._sdk.await_job_completion(job_id)
 
-    def export(self, filename: str) -> None:
+    def export(self, filename: str, force_overwrite: bool = False) -> None:
         """Execute workflow and save results to file.
 
         Args:
-            filename: If the filename ends with .csv a CSV file is produced.  Otherwise a JSONL file is written.
+            filename: Path to output file, must end with .csv or .jsonl
+            force_overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
+
+        Raises:
+            ValueError: If filename doesn't end with .csv or .jsonl
+            FileExistsError: If file exists and force_overwrite is False
         """
+
         if not (filename.endswith('.csv') or filename.endswith('.jsonl')):
             raise ValueError("Output filename must end with .csv or .jsonl")
+
+        if os.path.exists(filename) and not force_overwrite:
+            raise FileExistsError(
+                f"File {filename} already exists. Use force_overwrite=True to overwrite.")
 
         results = self.run()
 
