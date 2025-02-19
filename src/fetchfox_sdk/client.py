@@ -75,7 +75,7 @@ class FetchFoxSDK:
             print(*args, **kwargs)
 
     def workflow(self, url: str = None, params:dict = None) -> "Workflow":
-        """Create a new workflow using this SDK instance
+        """Create a new workflow using this SDK instance.
 
         Optionally, a URL and/or params may be passed here to initialize
         the workflow with them.
@@ -91,6 +91,12 @@ class FetchFoxSDK:
 
         if you wish to run the workflow for both states and collect the results.
 
+        A workflow is kind of like a Django QuerySet.  It will not be executed
+        until you attempt to use the results.
+
+        Examples of how to use a workflow:
+
+        TODO
 
         Args:
             url: URL to start from

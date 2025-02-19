@@ -64,13 +64,39 @@ class Workflow:
         return item in self.results
 
     def _clone(self):
-        """Create a new instance with copied workflow but no results"""
+        """Create a new instance with copied workflow OR copied results"""
 
         #TODO: If there are results, can we simply pass them as consts?
 
-        new_instance = Workflow(self._sdk)
-        new_instance._workflow = copy.deepcopy(self._workflow)
-        return new_instance
+        # check underlying, not property, because we don't want to trigger exec
+        if self._results is None: #TODO - check job_id ?
+            # If there are no results, we are extending the steps of this workflow
+            # so that, when it runs, we'll produce the desired results
+            new_instance = Workflow(self._sdk)
+            new_instance._workflow = copy.deepcopy(self._workflow)
+            return new_instance
+        else:
+            # We purportedly have results
+            if len(self._results) < 1:
+                raise NotImplementedError()
+                # TODO: what should happen in this case?
+
+            # We have more than zero results:
+            # We are disposing of the steps that have been executed.
+            # The results are now used for workflows that derive from this one,
+            # This allows re-using a workflow to make many deriviatives without
+            # re-executing it or having to manually initialize them from
+            # the results
+            new_instance = Workflow(self._sdk)
+            new_instance._workflow["steps"] = [
+                {
+                    "name": "const",
+                    "args": {
+                        "items": copy.deepcopy(self._results)
+                    }
+                }
+            ]
+            return new_instance
 
     def run(self) -> List[Dict]:
         """Execute the workflow and return results."""
@@ -144,7 +170,7 @@ class Workflow:
                     f.write(json.dumps(item) + '\n')
 
 
-    def extract(self, item_template: dict, single=None,
+    def extract(self, item_template: dict, single=None, view=None
             limit=None, max_pages=1) -> "Workflow":
         """Provide an item_template which describes what you want to extract
         from the URLs processed by this step.
@@ -169,6 +195,7 @@ class Workflow:
                     Set this to False if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
+            view: TODO - you may select a subset of the page content for processing
         """
 
         new_instance = self._clone()
@@ -180,7 +207,7 @@ class Workflow:
                 "Pass `single=True` to extract only a single result item per page."
                 "")
 
-        new_instance._workflow["steps"].append({
+        new_step = {
             "name": "extract",
             "args": {
                 "questions": item_template,
@@ -188,7 +215,12 @@ class Workflow:
                 "maxPages": max_pages,
                 "limit": limit
             }
-        })
+        }
+
+        if view is not None:
+            new_step['args']['view'] = view
+
+        new_instance._workflow["steps"].append(new_step)
 
         return new_instance
 
