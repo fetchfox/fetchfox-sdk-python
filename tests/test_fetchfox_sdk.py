@@ -1,35 +1,75 @@
 import pytest
 import responses
 import json
-from fetchfox_sdk import FetchFoxSDK, Workflow
+from fetchfox_sdk import FetchFoxSDK
 
 # Test constants
 API_KEY = "test_api_key_local"
 TEST_HOST = "http://127.0.0.1:8081"
 
 @pytest.fixture
-def fox_sdk():
-    #TODO: right now, we don't hit this.  Just mocks.
-    # We can parameterize this so as to highlight very clearly if the mocks
-    # differ from the actual reponses, and also allow  the tests to run
-    # without having a development server up
-    return FetchFoxSDK(api_key=API_KEY, host=TEST_HOST)
+def host(request):
+    return request.config.getoption("--host")
 
-def test_register_workflow(fox_sdk):
-    workflow = Workflow().init("https://example.com")
+@pytest.fixture
+def api_key(request):
+    return request.config.getoption("--api-key")
 
-    with responses.RequestsMock() as rsps:
-        rsps.add(
+@pytest.fixture
+def fox_sdk(host, api_key):
+    """Create SDK instance configured for testing."""
+    if host == "mock":
+        return FetchFoxSDK(api_key="test_key", host="http://127.0.0.1")
+
+    if not api_key:
+        pytest.fail("API key required when testing against real server")
+
+    return FetchFoxSDK(api_key=api_key, host=host)
+
+@pytest.fixture
+def maybe_mock_responses(host):
+    """Conditionally apply response mocking."""
+    if host == "mock":
+        with responses.RequestsMock() as rsps:
+            yield rsps
+    else:
+        yield None
+
+def test_register_workflow(fox_sdk, maybe_mock_responses, capsys):
+    # Create
+    workflow = fox_sdk.workflow().init("https://example.com")
+
+    # Setup mocks
+    if maybe_mock_responses is not None:
+        maybe_mock_responses.add(
             responses.POST,
             f"{fox_sdk.base_url}workflows",
             json={"id": "wf_123"},
             status=200
         )
 
-        workflow_id = fox_sdk.register_workflow(workflow)
+    # Run the function under test
+    workflow_id = fox_sdk.register_workflow(workflow)
+
+    # Assert against real backend (should be true when mocking too):
+    assert workflow_id is not None
+    assert isinstance(workflow_id, str)
+    assert  len(workflow_id) > 4 #just something
+
+    # Assert against the mock, where we have more specific responses handy
+    if maybe_mock_responses:
         assert workflow_id == "wf_123"
-        assert len(rsps.calls) == 1
-        assert json.loads(rsps.calls[0].request.body) == workflow.to_dict()
+        assert len(maybe_mock_responses.calls) == 1
+        assert json.loads(maybe_mock_responses.calls[0].request.body) == workflow.to_dict()
+
+    # Additional assertions or debug only if hitting a real backend:
+    if maybe_mock_responses is None:
+        with capsys.disabled():
+            print("\n### Real Activity: ###")
+            print(f"Registered Real Workflow: {workflow_id}")
+            print("### End Real Activity ###\n")
+
+
 
 def test_run_workflow(fox_sdk):
     workflow = Workflow().init("https://example.com")
@@ -202,3 +242,5 @@ def test_extract__with_prompt(fox_sdk):
 def test_find_urls(fox_sdk):
     raise NotImplementedError()
 
+def test_workflow_from_json(fox_sdk):
+    raise NotImplementedError()
