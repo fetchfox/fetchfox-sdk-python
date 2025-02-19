@@ -173,7 +173,7 @@ class Workflow:
                     f.write(json.dumps(item) + '\n')
 
 
-    def extract(self, item_template: dict, single=None, view=None
+    def extract(self, item_template: dict, single=None, view=None,
             limit=None, max_pages=1) -> "Workflow":
         """Provide an item_template which describes what you want to extract
         from the URLs processed by this step.
