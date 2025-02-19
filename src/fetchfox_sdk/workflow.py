@@ -98,6 +98,9 @@ class Workflow:
             ]
             return new_instance
 
+    #TODO: refresh?
+    #Force a re-run, even though results are present?
+
     def run(self) -> List[Dict]:
         """Execute the workflow and return results."""
         logger.debug("Running workflow.")

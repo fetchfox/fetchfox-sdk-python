@@ -77,6 +77,54 @@ class FetchFoxSDK:
     def workflow(self, url: str = None, params:dict = None) -> "Workflow":
         """Create a new workflow using this SDK instance.
 
+        Examples of how to use a workflow:
+
+        ```
+        city_pages = fox \
+            .workflow("https://locations.traderjoes.com/pa/") \
+            .extract(
+                item_template = {
+                    "url": "Find me all the URLs for the city directories"
+                }
+            )
+        ```
+
+        A workflow is kind of like a Django QuerySet.  It will not be executed
+        until you attempt to use the results.
+
+        ```
+        list_of_city_pages = list(city_pages)
+        # This would run the workflow and give you a list of items like:
+            {'url': 'https://....'}
+        ```
+
+        You could export those results to a file:
+        ```
+        city_pages.export("city_urls.jsonl")
+        city_pages.export("city_urls.csv")
+        ```
+
+        And then you could create a new workflow (or two) that use those results:
+
+        ```
+        store_info = city_pages.extract(
+            item_template = {
+                "store_address": "find me the address of the store",
+                "store_number": "Find me the number of the store (it's in parentheses)",
+                "store_phone": "Find me the phone number of the store"
+                }
+        )
+
+        store_urls = city_pages.extract(
+            item_template = {
+                "url": "Find me the URLs of Store detail pages."
+            }
+        )
+        ```
+
+        In the above snippets, the `city_pages` workflow was only ever executed
+        once.
+
         Optionally, a URL and/or params may be passed here to initialize
         the workflow with them.
 
@@ -91,13 +139,6 @@ class FetchFoxSDK:
 
         if you wish to run the workflow for both states and collect the results.
 
-        A workflow is kind of like a Django QuerySet.  It will not be executed
-        until you attempt to use the results.
-
-        Examples of how to use a workflow:
-
-        TODO
-
         Args:
             url: URL to start from
             params: Workflow parameters.
@@ -106,7 +147,7 @@ class FetchFoxSDK:
         if url:
             w = w.init(url)
         if params:
-            w.configure_params(params)
+            w = w.configure_params(params)
 
         return w
 
