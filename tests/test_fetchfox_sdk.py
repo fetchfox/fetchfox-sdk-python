@@ -1,11 +1,17 @@
 import pytest
 import responses
 import json
+import os
+import os.path
+import pathlib
+from responses.matchers import json_params_matcher
+
 from fetchfox_sdk import FetchFoxSDK
 
-# Test constants
-API_KEY = "test_api_key_local"
-TEST_HOST = "http://127.0.0.1:8081"
+# Get directory containing the current script
+SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
+# Build path relative to it
+MOCKS_DIR = (SCRIPT_DIR / "mocks").resolve()
 
 @pytest.fixture
 def host(request):
@@ -34,6 +40,224 @@ def maybe_mock_responses(host):
             yield rsps
     else:
         yield None
+
+def test_one_step_flow__extract(fox_sdk, maybe_mock_responses, capsys):
+    # Create
+    city_pages = fox_sdk \
+        .workflow("https://locations.traderjoes.com/pa/") \
+        .extract(
+            item_template = {
+                "url": "Find me all the URLs for the city directories"
+            }
+        )
+
+    # Setup mocks
+    if maybe_mock_responses is not None:
+        with open(os.path.join(MOCKS_DIR,"test_one_step_flow__extract.json")) as f:
+            mocks = json.load(f)
+
+        for mock in mocks:
+            maybe_mock_responses.add(
+                getattr(responses, mock['request']['method']),
+                f"{fox_sdk.base_url}{mock['request']['url']}",
+                json=mock['response']['json'],
+                status=mock['response']['status_code'],
+                match=[
+                    json_params_matcher(mock['request']['json_data'])
+                ] if mock['request']['json_data'] else []
+            )
+
+    # Run the function under test
+    # In this case, we trigger workflow execution by materializing the results
+    list_of_city_pages = list(city_pages)
+
+
+    # Assert against real backend (should be true when mocking too):
+    assert isinstance(list_of_city_pages, list)
+    assert len(list_of_city_pages) > 2
+    assert "traderjoes.com" in list_of_city_pages[0]['url']
+
+    # Assert against the mock, where we have more specific responses handy
+    if maybe_mock_responses:
+        #TODO: assertions about the calls made?
+
+        # There may be variation in e.g. the ordering when we're making real
+        # requests, but in this mock, we know exactly how it will appear.
+        expected_list_of_city_pages = [
+            {'url': 'https://locations.traderjoes.com/pa/ardmore/'},
+            {'url': 'https://locations.traderjoes.com/pa/berwyn/'},
+            {'url': 'https://locations.traderjoes.com/pa/camp-hill/'},
+            {'url': 'https://locations.traderjoes.com/pa/jenkintown/'},
+            {'url': 'https://locations.traderjoes.com/pa/king-of-prussia/'},
+            {'url': 'https://locations.traderjoes.com/pa/media/'},
+            {'url': 'https://locations.traderjoes.com/pa/north-wales/'},
+            {'url': 'https://locations.traderjoes.com/pa/philadelphia/'},
+            {'url': 'https://locations.traderjoes.com/pa/pittsburgh/'},
+            {'url': 'https://locations.traderjoes.com/pa/state-college/'},
+            {'url': 'https://locations.traderjoes.com/pa/wayne/'}
+        ]
+        assert list_of_city_pages == expected_list_of_city_pages
+        assert json.loads(maybe_mock_responses.calls[0].request.body) == city_pages.to_dict()
+
+    # Additional assertions or debug only if hitting a real backend:
+    if maybe_mock_responses is None:
+        with capsys.disabled():
+            print("\n### Real Activity: ###")
+            print(f"Extracted Data: {city_pages[0]}")
+            print(f"Extracted Data: {city_pages[1]}")
+            print("### End Real Activity ###\n")
+
+def test_one_step_flow__extract(fox_sdk, maybe_mock_responses, capsys):
+    # Create
+    city_pages = fox_sdk \
+        .workflow("https://locations.traderjoes.com/pa/") \
+        .extract(
+            item_template = {
+                "url": "Find me all the URLs for the city directories"
+            }
+        )
+
+    # Setup mocks
+    if maybe_mock_responses is not None:
+        with open(os.path.join(MOCKS_DIR,"test_one_step_flow__extract.json")) as f:
+            mocks = json.load(f)
+
+        for mock in mocks:
+            maybe_mock_responses.add(
+                getattr(responses, mock['request']['method']),
+                f"{fox_sdk.base_url}{mock['request']['url']}",
+                json=mock['response']['json'],
+                status=mock['response']['status_code'],
+                match=[
+                    json_params_matcher(mock['request']['json_data'])
+                ] if mock['request']['json_data'] else []
+            )
+
+    # Run the function under test
+    # In this case, we trigger workflow execution by materializing the results
+    list_of_city_pages = list(city_pages)
+
+
+    # Assert against real backend (should be true when mocking too):
+    assert isinstance(list_of_city_pages, list)
+    assert len(list_of_city_pages) > 2
+    assert "traderjoes.com" in list_of_city_pages[0]['url']
+
+    # Assert against the mock, where we have more specific responses handy
+    if maybe_mock_responses:
+        #TODO: assertions about the calls made?
+
+        # There may be variation in e.g. the ordering when we're making real
+        # requests, but in this mock, we know exactly how it will appear.
+        expected_list_of_city_pages = [
+            {'url': 'https://locations.traderjoes.com/pa/ardmore/'},
+            {'url': 'https://locations.traderjoes.com/pa/berwyn/'},
+            {'url': 'https://locations.traderjoes.com/pa/camp-hill/'},
+            {'url': 'https://locations.traderjoes.com/pa/jenkintown/'},
+            {'url': 'https://locations.traderjoes.com/pa/king-of-prussia/'},
+            {'url': 'https://locations.traderjoes.com/pa/media/'},
+            {'url': 'https://locations.traderjoes.com/pa/north-wales/'},
+            {'url': 'https://locations.traderjoes.com/pa/philadelphia/'},
+            {'url': 'https://locations.traderjoes.com/pa/pittsburgh/'},
+            {'url': 'https://locations.traderjoes.com/pa/state-college/'},
+            {'url': 'https://locations.traderjoes.com/pa/wayne/'}
+        ]
+        assert list_of_city_pages == expected_list_of_city_pages
+        assert json.loads(maybe_mock_responses.calls[0].request.body) == city_pages.to_dict()
+
+    # Additional assertions or debug only if hitting a real backend:
+    if maybe_mock_responses is None:
+        with capsys.disabled():
+            print("\n### Real Activity: ###")
+            print(f"Extracted Data: {city_pages[0]}")
+            print(f"Extracted Data: {city_pages[1]}")
+            print("### End Real Activity ###\n")
+
+def test_setup_of_derived_flow__parent_has_results(fox_sdk, maybe_mock_responses, capsys):
+    # Create first workflow
+    city_pages = fox_sdk \
+        .workflow("https://locations.traderjoes.com/pa/") \
+        .extract(
+            item_template = {
+                "url": "Find me all the URLs for the city directories"
+            }
+        )
+
+    # Setup mocks
+    if maybe_mock_responses is not None:
+        with open(os.path.join(MOCKS_DIR,"test_one_step_flow__extract.json")) as f:
+            mocks = json.load(f)
+
+        for mock in mocks:
+            maybe_mock_responses.add(
+                getattr(responses, mock['request']['method']),
+                f"{fox_sdk.base_url}{mock['request']['url']}",
+                json=mock['response']['json'],
+                status=mock['response']['status_code'],
+                match=[
+                    json_params_matcher(mock['request']['json_data'])
+                ] if mock['request']['json_data'] else []
+            )
+
+    # Run the function under test
+    # In this case, we trigger workflow execution by materializing the results
+    list_of_city_pages = list(city_pages)
+    assert city_pages._results is not None
+
+    # Now, when we make flows derived from city pages, they should be initialized
+    # with the results
+
+    store_info = city_pages.extract(
+        item_template = {
+            "store_address": "find me the address of the store",
+            "store_number": "Find me the number of the store (it's in parentheses)",
+            "store_phone": "Find me the phone number of the store"
+            }
+    )
+
+    assert store_info._workflow['steps'][0]['name'] == "const"
+    assert store_info._workflow['steps'][0]['args']['items'] == list_of_city_pages
+    # If these are true, we have (correctly) used the executed parent workflow
+    # results for the initial step of the derived workflow - that means that
+    # the already executed step will not be re-executed.
+    # Contrast to test_setup_of_derived_flow__parent_never_ran
+
+def test_setup_of_derived_flow__parent_never_ran(fox_sdk, maybe_mock_responses, capsys):
+    # Create first workflow
+    city_pages = fox_sdk \
+        .workflow("https://locations.traderjoes.com/pa/") \
+        .extract(
+            item_template = {
+                "url": "Find me all the URLs for the city directories"
+            }
+        )
+
+    # In this case, we don't ever run the parent workflow
+    assert city_pages._results is None
+
+    # Now, when we make flows derived from city pages, they should be initialized
+    # as workflows extending the existing steps
+
+    store_info = city_pages.extract(
+        item_template = {
+            "store_address": "find me the address of the store",
+            "store_number": "Find me the number of the store (it's in parentheses)",
+            "store_phone": "Find me the phone number of the store"
+            }
+    )
+
+    assert len(store_info._workflow['steps']) == 3
+
+    assert (
+        store_info._workflow['steps'][0]['args']['items']
+        ==
+        [{'url': 'https://locations.traderjoes.com/pa/'}]
+    )
+
+    # If these are true, we have (correctly) extended the parent workflow
+    # which means that, when something does require execution,
+    # we won't be missing any steps / consts.
+    # Contrast to test_setup_of_derived_flow__parent_has_results
 
 def test_register_workflow(fox_sdk, maybe_mock_responses, capsys):
     # Create
@@ -70,8 +294,8 @@ def test_register_workflow(fox_sdk, maybe_mock_responses, capsys):
             print("### End Real Activity ###\n")
 
 
-
 def test_run_workflow(fox_sdk):
+    """Success implies register_workflow is fine too"""
     workflow = Workflow().init("https://example.com")
 
     with responses.RequestsMock() as rsps:
@@ -228,7 +452,7 @@ def test_plan_extraction_from_prompt(fox_sdk):
            ]
        )
 
-       workflow = fox_sdk._plan_extraction_from_prompt(url, instruction)
+       workflow = fox_sdk._plan_extraction_from_url_and_prompt(url, instruction)
 
        # Verify both requests were made
        assert len(rsps.calls) == 2
@@ -237,9 +461,6 @@ def test_plan_extraction_from_prompt(fox_sdk):
        assert workflow.to_dict() == expected_plan
 
 def test_extract__with_prompt(fox_sdk):
-    raise NotImplementedError()
-
-def test_find_urls(fox_sdk):
     raise NotImplementedError()
 
 def test_workflow_from_json(fox_sdk):
