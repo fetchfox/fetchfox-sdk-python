@@ -152,7 +152,21 @@ class FetchFoxSDK:
         return w
 
     def workflow_from_json(self, json_workflow) -> "Workflow":
-        raise NotImplementedError()
+        """Given a JSON string, such as you can generate in the wizard at
+        https://fetchfox.ai, create a workflow from it.
+
+        Once created, it can be used like a regular workflow.
+
+        Args:
+            json_workflow: This must be a valid JSON string that represents a Fetchfox Workflow.  You should not usually try to write these manually, but simply copy-paste from the web interface.
+        """
+        return self.workflow_from_dict(json.loads(json_workflow))
+
+    def _workflow_from_dict(self, workflow_dict):
+        w = Workflow(self)
+        w._workflow = workflow_dict
+        return w
+
 
     def workflow_by_id(self, workflow_id) -> "Workflow":
         """Use a public workflow ID
@@ -160,7 +174,8 @@ class FetchFoxSDK:
         Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")
 
         """
-        raise NotImplementedError()
+        workflow_json = self.get_workflow(workflow_id)
+        return self.workflow_from_json(workflow_json)
 
     def register_workflow(self, workflow: Workflow) -> str:
         """Create a new workflow.
@@ -188,6 +203,11 @@ class FetchFoxSDK:
 
         # NOTE: Should we return Workflow objects intead?
         return response['results']
+
+    def get_workflow(self, id) -> dict:
+        """Get a registered workflow by ID."""
+        response = self._request("GET", f"workflow/{id}")
+        return response
 
     def run_workflow(self, workflow_id: Optional[str] = None,
                     workflow: Optional[Workflow] = None,
@@ -351,29 +371,35 @@ class FetchFoxSDK:
             "html": html_url
         })
 
-        return Workflow.from_dict(plan_response)
+        return self._workflow_from_dict(plan_response)
 
 
-    def extract(self, url: str, instruction: Optional[str] = None,
+    def just_extract(self, url: str, instruction: Optional[str] = None,
                 item_template: Optional[Dict[str, str]] = None,
-                single=False, max_pages=1, limit=None) -> List[Dict]:
+                mode=None, max_pages=1, limit=None) -> List[Dict]:
         """Extract items from a given URL, given either a prompt or a template.
 
         An instructional prompt is just natural language instruction describing
         the desired results.
 
-        The options "single", "max_pages", and "limit" may NOT be given with
+        The options "mode", "max_pages", and "limit" may NOT be given with
         "instruction". These options may only be provided with an item template.
+
+        Use an item_template when you want to specify output fieldnames.
 
         An item template is a dictionary where the keys are the desired
         output fieldnames and the values are the instructions for extraction of
         that field.
 
-        Example item template:
+        Example item templates:
         {
             "magnitude": "What is the magnitude of this earthquake?",
             "location": "What is the location of this earthquake?",
             "time": "What is the time of this earthquake?"
+        }
+
+        {
+            "url": "Find me all the links to the product detail pages."
         }
 
         To follow pagination, provide max_pages > 1.
@@ -381,7 +407,7 @@ class FetchFoxSDK:
         Args:
             instruction: an instructional prompt as described above
             item_template: the item template described above
-            single: Defaults to False. Set this to True if each URL has only a single item to extract.
+            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """
@@ -392,12 +418,12 @@ class FetchFoxSDK:
         if item_template is None and instruction is None:
             raise ValueError("Please provide an item_template or prompt.")
 
-        implied_workflow = Workflow().init(url)
+        implied_workflow = self.workflow(url)
 
         if item_template:
             implied_workflow.extract(
                 item_template,
-                single=single,
+                mode=mode,
                 max_pages=max_pages,
                 limit=limit
             )
@@ -406,7 +432,7 @@ class FetchFoxSDK:
             # warn, because they are not being respected.
             # We could also throw an error here.
 
-            if single:
+            if mode:
                 nqprint("Warning: 'single' will be ignored in instruction mode.")
             if max_pages != 1:
                 nqprint("Warning: 'max_pages' will be ignored in instruction mode.")
@@ -424,31 +450,3 @@ class FetchFoxSDK:
 
         result_items = self.await_job_completion(job_id)
         return result_items
-
-    def find_urls(self, url: str, instruction: str, max_pages: int = 1,
-            limit=None) -> List[str]:
-        """Find URLs on a webpage using AI, given an instructional prompt.
-
-         An instructional prompt is just natural language instruction describing
-        the desired results.
-
-        Example Instructional Prompts:
-            "Find me all the links to bicycles that are not electric 'e-bikes'"
-            "Find me the links to each product detail page."
-            "Find me the links for each US State"
-            "Find me the links to the profiles for employees among the C-Suite"
-
-        Args:
-            instruction: an instructional prompt as described above
-            max_pages: provide an integer > 1 if you want to follow pagination
-            limit: limits the number of items yielded by this step
-        """
-        implied_workflow = (
-            Workflow()
-            .init(url)
-            .find_urls(instruction, max_pages=max_pages, limit=limit)
-        )
-
-        job_id = self.run_workflow(workflow=implied_workflow)
-        urls_as_items = self.await_job_completion(job_id, keep_urls=True)
-        return [ item['_url'] for item in urls_as_items ]
