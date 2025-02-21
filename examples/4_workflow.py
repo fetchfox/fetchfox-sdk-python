@@ -6,8 +6,9 @@ fox = fetchfox_sdk.FetchFoxSDK()
 product_list_url = \
     "https://www.bicyclebluebook.com/marketplace/buy-now/?viewport=desktop&ss=Front&page=1&bt=Disc+-+Hydraulic&storeId=&sn=&sell_type=ALL&lt=BIKE&c=USED&w=26%22"
 
-find_urls_instructions = \
-    "Find me the links to each detail page for a bicycle for sale."
+find_urls_template = {
+    "url": "Find me the links to each detail page for a bicycle for sale."
+}
 
 bike_for_sale_template = {
     "full_description": "Find the seller's entire textual description.",
@@ -19,13 +20,11 @@ bike_for_sale_template = {
 filter_instructions = "Exclude any listings where the description includes phrases such as 'no tire kickers' or 'i know what i have' or 'serious buyers only' or 'no lowballers' or anything else that suggests an unwillingness to negotiate."
 
 workflow = (
-    fetchfox_sdk.Workflow()
-    .init(product_list_url)
-    .find_urls(find_urls_instructions, limit=10)
+    fox.workflow(product_list_url)
+    .extract(find_urls_template, limit=20)
     .extract(bike_for_sale_template)
     .filter(filter_instructions)
 )
 
-job_id = fox.run_workflow(workflow=workflow)
-result_items = fox.await_job_completion(job_id)
+result_items = workflow.results
 pprint(result_items)

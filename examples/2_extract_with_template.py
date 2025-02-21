@@ -27,7 +27,7 @@ incident_item_template = {
 # gets it sometimes anyway.
 
 consistent_results = \
-    fox.extract(
+    fox.just_extract(
         STATUS_URL,
         item_template=incident_item_template
     )

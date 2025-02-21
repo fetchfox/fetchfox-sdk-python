@@ -6,7 +6,7 @@ fox = fetchfox_sdk.FetchFoxSDK()
 STATUS_URL = "https://status.openai.com/"
 
 convenient_results = \
-    fox.extract(
+    fox.just_extract(
         STATUS_URL,
         instruction="Get me a list of incidents, the time they began investigating, and the time they were resolved."
     )
