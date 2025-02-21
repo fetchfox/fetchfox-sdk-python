@@ -301,7 +301,7 @@ class FetchFoxSDK:
 
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
-        self._nqprint("Waiting for job to finish: ")
+        self._nqprint(f"Waiting for job [{job_id}] to finish: ")
 
         while True:
 
