@@ -30,6 +30,14 @@ class Workflow:
             self.run()
             return self._results
 
+    @property
+    def has_results(self):
+        """If you want to check whether a workflow has results already, but
+        do NOT want to trigger execution yet."""
+        if self._results is None:
+            return False
+        return True
+
     def __iter__(self):
         """Make the workflow iterable.
         Accessing the results property will execute the workflow if necessary.
@@ -39,6 +47,8 @@ class Workflow:
     def __getitem__(self, key):
         """Allow indexing into the workflow results.
         Accessing the results property will execute the workflow if necessary.
+        NOTE: Workflows will NEVER execute partially.  Accessing any item of
+        the results will always trigger a complete execution.
 
         Args:
             key: Can be an integer index or a slice
@@ -102,7 +112,12 @@ class Workflow:
     #Force a re-run, even though results are present?
 
     def run(self) -> List[Dict]:
-        """Execute the workflow and return results."""
+        """Execute the workflow and return results.
+
+        Note that running the workflow will attach the results to it.  After it
+        has results, derived workflows will be given the _results_ from this workflow,
+        NOT the steps of this workflow.
+        """
         logger.debug("Running workflow.")
         job_id = self._sdk._run_workflow(workflow=self)
         results = self._sdk.await_job_completion(job_id)
@@ -110,6 +125,7 @@ class Workflow:
             print("This workflow did not return any results.")
         self._ran_job_id = job_id
         self._results = results
+        return self._results
 
     def init(self, url: str) -> "Workflow":
 
@@ -229,6 +245,9 @@ class Workflow:
         return new_instance
 
     def limit(self, n: int) -> "Workflow":
+        """
+        Limit the total number of results that this workflow will produce.
+        """
         if self._workflow['options'].get('limit') is not None:
             raise ValueError(
                 "This limit is per-workflow, and may only be set once.")
