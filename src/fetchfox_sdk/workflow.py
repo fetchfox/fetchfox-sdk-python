@@ -203,18 +203,10 @@ class Workflow:
 
         new_instance = self._clone()
 
-        if single is None:
-            single = False
-            self._sdk.nqprint(
-                "Extracting multiple items per page in this workflow. "
-                "Pass `single=True` to extract only a single result item per page."
-                "")
-
         new_step = {
             "name": "extract",
             "args": {
                 "questions": item_template,
-                "single": single,
                 "maxPages": max_pages,
                 "limit": limit
             }
@@ -222,6 +214,9 @@ class Workflow:
 
         if view is not None:
             new_step['args']['view'] = view
+
+        if single is not None:
+            new_step['args']['single'] = single
 
         new_instance._workflow["steps"].append(new_step)
 

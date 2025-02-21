@@ -70,7 +70,7 @@ class FetchFoxSDK:
         logger.debug(f"Response from %s %s:\n%s", method, path, pformat(body))
         return body
 
-    def nqprint(self, *args, **kwargs):
+    def _nqprint(self, *args, **kwargs):
         if not self.quiet:
             print(*args, **kwargs)
 
@@ -280,13 +280,13 @@ class FetchFoxSDK:
 
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
-        self.nqprint("Waiting for job to finish: ")
+        self._nqprint("Waiting for job to finish: ")
 
         while True:
 
             try:
                 status = self.get_job_status(job_id)
-                self.nqprint(".", end="")
+                self._nqprint(".", end="")
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
 
@@ -306,7 +306,7 @@ class FetchFoxSDK:
                     raise
 
             if status.get('done'):
-                self.nqprint("\n")
+                self._nqprint("\n")
 
                 if full_response:
                     return status
