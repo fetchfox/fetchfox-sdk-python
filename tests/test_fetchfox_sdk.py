@@ -315,7 +315,7 @@ def test_run_workflow(fox_sdk):
             status=200
         )
 
-        job_id = fox_sdk.run_workflow(workflow=workflow)
+        job_id = fox_sdk._run_workflow(workflow=workflow)
         assert job_id == "job_456"
         assert len(rsps.calls) == 2
 

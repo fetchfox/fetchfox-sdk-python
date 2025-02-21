@@ -61,7 +61,8 @@ class FetchFoxSDK:
             url,
             headers=self.headers,
             json=json_data,
-            params=params
+            params=params,
+            timeout=(30,30)
         )
 
         response.raise_for_status()
@@ -209,7 +210,7 @@ class FetchFoxSDK:
         response = self._request("GET", f"workflow/{id}")
         return response
 
-    def run_workflow(self, workflow_id: Optional[str] = None,
+    def _run_workflow(self, workflow_id: Optional[str] = None,
                     workflow: Optional[Workflow] = None,
                     params: Optional[dict] = None) -> str:
         """Run a workflow. Either provide the ID of a registered workflow,

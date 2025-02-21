@@ -104,7 +104,7 @@ class Workflow:
     def run(self) -> List[Dict]:
         """Execute the workflow and return results."""
         logger.debug("Running workflow.")
-        job_id = self._sdk.run_workflow(workflow=self)
+        job_id = self._sdk._run_workflow(workflow=self)
         results = self._sdk.await_job_completion(job_id)
         if results is None or len(results) == 0:
             print("This workflow did not return any results.")
