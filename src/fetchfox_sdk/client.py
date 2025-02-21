@@ -418,10 +418,8 @@ class FetchFoxSDK:
         if item_template is None and instruction is None:
             raise ValueError("Please provide an item_template or prompt.")
 
-        implied_workflow = self.workflow(url)
-
         if item_template:
-            implied_workflow.extract(
+            implied_workflow = self.workflow(url).extract(
                 item_template,
                 mode=mode,
                 max_pages=max_pages,
@@ -444,9 +442,4 @@ class FetchFoxSDK:
                     url,
                     instruction)
 
-        job_id = self.run_workflow(workflow=implied_workflow)
-        # The workflow will be registered and run, but in this convenience
-        # function, the user doesn't care about that.
-
-        result_items = self.await_job_completion(job_id)
-        return result_items
+        return implied_workflow.results
