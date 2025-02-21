@@ -173,7 +173,7 @@ class Workflow:
                     f.write(json.dumps(item) + '\n')
 
 
-    def extract(self, item_template: dict, single=None, view=None,
+    def extract(self, item_template: dict, mode=None, view=None,
             limit=None, max_pages=1) -> "Workflow":
         """Provide an item_template which describes what you want to extract
         from the URLs processed by this step.
@@ -194,8 +194,7 @@ class Workflow:
 
         Args:
             item_template: the item template described above
-            single: set this to True if each URL has only a single item.
-                    Set this to False if each URL should yield multiple items
+            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
             view: TODO - you may select a subset of the page content for processing
@@ -215,8 +214,15 @@ class Workflow:
         if view is not None:
             new_step['args']['view'] = view
 
-        if single is not None:
-            new_step['args']['single'] = single
+        if mode is not None:
+            if mode == 'single':
+                new_step['args']['single'] = True
+            elif mode == 'multiple':
+                new_step['args']['single'] = False
+            else:
+                raise ValueError(
+                    "Allowable modes are 'single', 'multiple' or 'auto'")
+
 
         new_instance._workflow["steps"].append(new_step)
 
