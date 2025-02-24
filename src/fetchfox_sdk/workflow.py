@@ -79,19 +79,17 @@ class Workflow:
         #TODO: If there are results, can we simply pass them as consts?
 
         # check underlying, not property, because we don't want to trigger exec
-        if self._results is None: #TODO - check job_id ?
+        if self._results is None or len(self._results) < 1: #TODO - check job_id ?
             # If there are no results, we are extending the steps of this workflow
             # so that, when it runs, we'll produce the desired results
+            if self._ran_job_id is not None:
+                logger.debug("Cloning a job that ran, but which had no results")
+
             new_instance = Workflow(self._sdk)
             new_instance._workflow = copy.deepcopy(self._workflow)
             return new_instance
         else:
-            # We purportedly have results
-            if len(self._results) < 1:
-                raise NotImplementedError()
-                # TODO: what should happen in this case?
-
-            # We have more than zero results:
+            # We purportedly have more than zero results:
             # We are disposing of the steps that have been executed.
             # The results are now used for workflows that derive from this one,
             # This allows re-using a workflow to make many deriviatives without
@@ -213,7 +211,7 @@ class Workflow:
             mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
-            view: TODO - you may select a subset of the page content for processing
+            view: 'html' | 'selectHtml' | 'text' - defaults to HTML (the full HTML).  Use 'selectHTML' to have the AI see only text and links.  Use 'text' to have the AI see only text.
         """
 
         new_instance = self._clone()

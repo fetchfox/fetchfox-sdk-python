@@ -6,6 +6,7 @@ import json
 from pprint import pformat
 from urllib.parse import urljoin, urlencode
 import os
+import sys
 import logging
 from .workflow import Workflow
 
@@ -68,7 +69,9 @@ class FetchFoxSDK:
         response.raise_for_status()
         body = response.json()
 
-        logger.debug(f"Response from %s %s:\n%s", method, path, pformat(body))
+        logger.debug(
+            f"Response from %s %s:\n%s  at %s",
+            method, path, pformat(body), datetime.now())
         return body
 
     def _nqprint(self, *args, **kwargs):
@@ -308,6 +311,7 @@ class FetchFoxSDK:
             try:
                 status = self.get_job_status(job_id)
                 self._nqprint(".", end="")
+                sys.stdout.flush()
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
 
