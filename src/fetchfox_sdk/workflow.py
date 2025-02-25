@@ -2,8 +2,10 @@ import os
 import copy
 import json
 import csv
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Generator
 import logging
+
+from .result_item import ResultItem
 
 logger = logging.getLogger('fetchfox')
 
@@ -23,12 +25,12 @@ class Workflow:
     @property
     def results(self):
         """Get the results, executing the query if necessary.
+        Returns results as ResultItem objects for easier attribute access.
         """
-        if self._results is not None:
-            return self._results
-        else:
+        if not self.has_results():
             self.run()
-            return self._results
+
+        return [ResultItem(item) for item in self._results]
 
     @property
     def has_results(self):
@@ -38,11 +40,13 @@ class Workflow:
             return False
         return True
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[ResultItem, None, None]:
         """Make the workflow iterable.
         Accessing the results property will execute the workflow if necessary.
         """
-        return iter(self.results)
+        # Use the results property which already returns ResultItems
+        for item in self.results:
+            yield item
 
     def __getitem__(self, key):
         """Allow indexing into the workflow results.
@@ -53,6 +57,7 @@ class Workflow:
         Args:
             key: Can be an integer index or a slice
         """
+        # Results property already returns ResultItems
         return self.results[key]
 
     def __bool__(self):
@@ -75,14 +80,12 @@ class Workflow:
 
     def _clone(self):
         """Create a new instance with copied workflow OR copied results"""
-
-        #TODO: If there are results, can we simply pass them as consts?
-
         # check underlying, not property, because we don't want to trigger exec
-        if self._results is None or len(self._results) < 1: #TODO - check job_id ?
+        if self._results is None or len(self._results) < 1:
             # If there are no results, we are extending the steps of this workflow
             # so that, when it runs, we'll produce the desired results
             if self._ran_job_id is not None:
+                #TODO - anything else we should do when we've run but no results?
                 logger.debug("Cloning a job that ran, but which had no results")
 
             new_instance = Workflow(self._sdk)
@@ -101,6 +104,8 @@ class Workflow:
                     "name": "const",
                     "args": {
                         "items": copy.deepcopy(self._results)
+                        # We use the internal _results field, because it's a
+                        # list of dictionaries rather than ResultItems
                     }
                 }
             ]
@@ -163,27 +168,39 @@ class Workflow:
             raise FileExistsError(
                 f"File {filename} already exists. Use force_overwrite=True to overwrite.")
 
-        if not self.results: #accessing this property will cache the results
-            if not self._ran_job_id:
-                raise RuntimeError(
-                    "No results and no job_id - "
-                    "there may have been an uncaught problem running the job.")
-            else:
-                raise RuntimeError("Workflow produced no results")
+        # Manually controlled here for clarity -
+        # we could just use ".results" but then we don't want the ResultItems
+        # here anyway, and using ._results won't trigger execution.
+        if not self.has_run():
+            self.run()
+
+        # Now, we should certainly have a job ID, or something has gone
+        # unexpectedly poorly.
+        if not self._ran_job_id:
+            raise RuntimeError(
+                "There may have been an uncaught problem running the job.")
+
+        # Not every workflow is going to yield results
+        if not self._results or len(self._results) < 1:
+            # TODO: maybe it's OK to fail silently here, but I don't want to
+            # overwrite possible earlier results in the case of a failure.
+            raise RuntimeError(
+                "There are not results to export.  Bailing here rather than "
+                "writing an empty file.")
 
         if filename.endswith('.csv'):
             fieldnames = set()
-            for item in self.results:
+            for item in self._results:
                 fieldnames.update(item.keys())
 
             with open(filename, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=sorted(fieldnames))
                 writer.writeheader()
-                writer.writerows(self.results)
+                writer.writerows(self._results)
 
         else:
             with open(filename, 'w') as f:
-                for item in self.results:
+                for item in self._results:
                     f.write(json.dumps(item) + '\n')
 
 
@@ -213,6 +230,16 @@ class Workflow:
             limit: limit the number of items yielded by this step
             view: 'html' | 'selectHtml' | 'text' - defaults to HTML (the full HTML).  Use 'selectHTML' to have the AI see only text and links.  Use 'text' to have the AI see only text.
         """
+        # Validate field names to prevent collisions with ResultItem methods
+        RESERVED_PROPERTIES = {'keys', 'items', 'values', 'to_dict', 'get'}
+
+        for field_name in item_template.keys():
+            if field_name in RESERVED_PROPERTIES:
+                raise ValueError(
+                    f"Field name '{field_name}' is a reserved property name. "
+                    f"Please choose a different field name. "
+                    f"Reserved names are: {', '.join(RESERVED_PROPERTIES)}"
+                )
 
         new_instance = self._clone()
 
@@ -303,4 +330,4 @@ class Workflow:
         return self._workflow
 
     def to_json(self):
-        return json.dumps(self)
+        return json.dumps(self._workflow)
