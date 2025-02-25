@@ -130,17 +130,26 @@ class Workflow:
         self._results = results
         return self._results
 
-    def init(self, url: str) -> "Workflow":
+    def init(self, url: Union[str, List[str]]) -> "Workflow":
+        """Initialize the workflow with one or more URLs.
 
-        #TODO: Do we need to allow other data here, params?
+        Args:
+            url: Can be a single URL as a string, or a list of URLs.
+        """
         #TODO: if used more than once, raise error and print helpful message
+        #TODO: do params here?
 
         new_instance = self._clone()
+
+        if isinstance(url, str):
+            items = [{"url": url}]
+        else:
+            items = [{"url": u} for u in url]
 
         new_instance._workflow["steps"].append({
             "name": "const",
             "args": {
-                "items": [{"url": url}],
+                "items": items,
                 "maxPages": 1 #TODO
             }
         })

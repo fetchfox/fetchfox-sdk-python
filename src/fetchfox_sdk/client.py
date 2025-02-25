@@ -78,7 +78,7 @@ class FetchFoxSDK:
         if not self.quiet:
             print(*args, **kwargs)
 
-    def workflow(self, url: str = None, params:dict = None) -> "Workflow":
+    def _workflow(self, url_or_urls: Union[str, List[str]] = None) -> "Workflow":
         """Create a new workflow using this SDK instance.
 
         Examples of how to use a workflow:
@@ -148,8 +148,8 @@ class FetchFoxSDK:
             params: Workflow parameters.
         """
         w = Workflow(self)
-        if url:
-            w = w.init(url)
+        if url_or_urls:
+            w = w.init(url_or_urls)
         if params:
             w = w.configure_params(params)
 
@@ -171,7 +171,6 @@ class FetchFoxSDK:
         w._workflow = workflow_dict
         return w
 
-
     def workflow_by_id(self, workflow_id) -> "Workflow":
         """Use a public workflow ID
 
@@ -181,7 +180,7 @@ class FetchFoxSDK:
         workflow_json = self.get_workflow(workflow_id)
         return self.workflow_from_json(workflow_json)
 
-    def register_workflow(self, workflow: Workflow) -> str:
+    def _register_workflow(self, workflow: Workflow) -> str:
         """Create a new workflow.
 
         Args:
@@ -197,7 +196,7 @@ class FetchFoxSDK:
         # can be supplied, and then we return everything
         return response['id']
 
-    def get_workflows(self) -> list:
+    def _get_workflows(self) -> list:
         """Get workflows
 
         Returns:
@@ -208,7 +207,7 @@ class FetchFoxSDK:
         # NOTE: Should we return Workflow objects intead?
         return response['results']
 
-    def get_workflow(self, id) -> dict:
+    def _get_workflow(self, id) -> dict:
         """Get a registered workflow by ID."""
         response = self._request("GET", f"workflow/{id}")
         return response
@@ -272,7 +271,7 @@ class FetchFoxSDK:
         # can be supplied, and then we return everything
         return response['jobId']
 
-    def get_job_status(self, job_id: str) -> dict:
+    def _get_job_status(self, job_id: str) -> dict:
         """Get the status and results of a job.  Returns partial results before
         eventually returning the full results.
 
@@ -288,7 +287,7 @@ class FetchFoxSDK:
         """
         return self._request('GET', f'jobs/{job_id}')
 
-    def await_job_completion(self, job_id: str, poll_interval: float = 5.0,
+    def _await_job_completion(self, job_id: str, poll_interval: float = 5.0,
             full_response: bool = False, keep_urls: bool = False):
         """Wait for a job to complete and return the resulting items or full
         response.
@@ -363,3 +362,46 @@ class FetchFoxSDK:
                 return stripped_items
 
             time.sleep(poll_interval)
+
+    def extract(self, url, *args, **kwargs):
+        """Extract items from a given URL, given an item template.
+
+        An item template is a dictionary where the keys are the desired
+        output fieldnames and the values are the instructions for extraction of
+        that field.
+
+        Example item templates:
+        {
+            "magnitude": "What is the magnitude of this earthquake?",
+            "location": "What is the location of this earthquake?",
+            "time": "What is the time of this earthquake?"
+        }
+
+        {
+            "url": "Find me all the links to the product detail pages."
+        }
+
+        To follow pagination, provide max_pages > 1.
+
+        Args:
+            item_template: the item template described above
+            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
+            max_pages: enable pagination from the given URL.  Defaults to one page only.
+            limit: limit the number of items yielded by this step
+        """
+        return self._workflow(url).extract(*args, *kwargs)
+
+    def init(self, url_or_urls, *args, **kwargs):
+        """Initialize the workflow with one or more URLs.
+
+        Args:
+            url: Can be a single URL as a string, or a list of URLs.
+        """
+        return self._workflow(url_or_urls)
+
+    def filter(*args, **kwargs):
+        raise RuntimeError("Filter cannot be the first step.")
+
+
+    def unique(*args, **kwargs):
+        raise RuntimeError("Unique cannot be the first step.")
