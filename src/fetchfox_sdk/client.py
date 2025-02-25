@@ -363,17 +363,3 @@ class FetchFoxSDK:
                 return stripped_items
 
             time.sleep(poll_interval)
-
-    def _plan_extraction_from_url_and_prompt(self,
-            url: str, instruction: str) -> Workflow:
-
-        fetch_response = self._request('GET', 'fetch', params={'url': url})
-        html_url = fetch_response['html']
-
-        plan_response = self._request('POST', 'plan/from-prompt', {
-            "prompt": instruction,
-            "urls": [url],
-            "html": html_url
-        })
-
-        return self._workflow_from_dict(plan_response)
