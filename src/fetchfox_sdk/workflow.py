@@ -2,7 +2,7 @@ import os
 import copy
 import json
 import csv
-from typing import Optional, Dict, Any, List, Generator
+from typing import Optional, Dict, Any, List, Generator, Union
 import logging
 
 from .result_item import ResultItem
@@ -27,7 +27,7 @@ class Workflow:
         """Get the results, executing the query if necessary.
         Returns results as ResultItem objects for easier attribute access.
         """
-        if not self.has_results():
+        if not self.has_results:
             self.run()
 
         return [ResultItem(item) for item in self._results]
@@ -39,6 +39,15 @@ class Workflow:
         if self._results is None:
             return False
         return True
+
+    @property
+    def has_run(self):
+        """If this workflow has been executed before (even if there were no
+        results)
+        """
+        if self._ran_job_id is not None:
+            return True
+        return False
 
     def __iter__(self) -> Generator[ResultItem, None, None]:
         """Make the workflow iterable.
@@ -123,7 +132,7 @@ class Workflow:
         """
         logger.debug("Running workflow.")
         job_id = self._sdk._run_workflow(workflow=self)
-        results = self._sdk.await_job_completion(job_id)
+        results = self._sdk._await_job_completion(job_id)
         if results is None or len(results) == 0:
             print("This workflow did not return any results.")
         self._ran_job_id = job_id
@@ -180,7 +189,7 @@ class Workflow:
         # Manually controlled here for clarity -
         # we could just use ".results" but then we don't want the ResultItems
         # here anyway, and using ._results won't trigger execution.
-        if not self.has_run():
+        if not self.has_run:
             self.run()
 
         # Now, we should certainly have a job ID, or something has gone

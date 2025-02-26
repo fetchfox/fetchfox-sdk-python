@@ -14,7 +14,7 @@ logger = logging.getLogger('fetchfox')
 
 _API_PREFIX = "/api/v2/"
 
-class FetchFoxSDK:
+class FetchFox:
     def __init__(self,
             api_key: Optional[str] = None, host: str = "https://fetchfox.ai",
             quiet=False):
@@ -150,8 +150,8 @@ class FetchFoxSDK:
         w = Workflow(self)
         if url_or_urls:
             w = w.init(url_or_urls)
-        if params:
-            w = w.configure_params(params)
+        # if params:
+        #     w = w.configure_params(params)
 
         return w
 
@@ -164,7 +164,7 @@ class FetchFoxSDK:
         Args:
             json_workflow: This must be a valid JSON string that represents a Fetchfox Workflow.  You should not usually try to write these manually, but simply copy-paste from the web interface.
         """
-        return self.workflow_from_dict(json.loads(json_workflow))
+        return self._workflow_from_dict(json.loads(json_workflow))
 
     def _workflow_from_dict(self, workflow_dict):
         w = Workflow(self)
@@ -177,7 +177,7 @@ class FetchFoxSDK:
         Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")
 
         """
-        workflow_json = self.get_workflow(workflow_id)
+        workflow_json = self._get_workflow(workflow_id)
         return self.workflow_from_json(workflow_json)
 
     def _register_workflow(self, workflow: Workflow) -> str:
@@ -260,7 +260,7 @@ class FetchFoxSDK:
             #   allow list-expansion here like above, pretty cool
 
         if workflow_id is None:
-            workflow_id = self.register_workflow(workflow) # type: ignore
+            workflow_id = self._register_workflow(workflow) # type: ignore
             logger.info("Registered new workflow with id: %s", workflow_id)
 
         #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
@@ -308,7 +308,7 @@ class FetchFoxSDK:
         while True:
 
             try:
-                status = self.get_job_status(job_id)
+                status = self._get_job_status(job_id)
                 self._nqprint(".", end="")
                 sys.stdout.flush()
             except requests.exceptions.HTTPError as e:
@@ -363,7 +363,7 @@ class FetchFoxSDK:
 
             time.sleep(poll_interval)
 
-    def extract(self, url, *args, **kwargs):
+    def extract(self, url_or_urls, *args, **kwargs):
         """Extract items from a given URL, given an item template.
 
         An item template is a dictionary where the keys are the desired
@@ -389,7 +389,7 @@ class FetchFoxSDK:
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """
-        return self._workflow(url).extract(*args, *kwargs)
+        return self._workflow(url_or_urls).extract(*args, *kwargs)
 
     def init(self, url_or_urls, *args, **kwargs):
         """Initialize the workflow with one or more URLs.

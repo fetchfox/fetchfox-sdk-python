@@ -6,7 +6,7 @@ import os.path
 import pathlib
 from responses.matchers import json_params_matcher
 
-from fetchfox_sdk import FetchFoxSDK
+from fetchfox_sdk import FetchFox
 
 # Get directory containing the current script
 SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
@@ -25,12 +25,12 @@ def api_key(request):
 def fox_sdk(host, api_key):
     """Create SDK instance configured for testing."""
     if host == "mock":
-        return FetchFoxSDK(api_key="test_key", host="http://127.0.0.1")
+        return FetchFox(api_key="test_key", host="http://127.0.0.1")
 
     if not api_key:
         pytest.fail("API key required when testing against real server")
 
-    return FetchFoxSDK(api_key=api_key, host=host)
+    return FetchFox(api_key=api_key, host=host)
 
 @pytest.fixture
 def maybe_mock_responses(host):
