@@ -132,7 +132,7 @@ class Workflow:
         """
         logger.debug("Running workflow.")
         job_id = self._sdk._run_workflow(workflow=self)
-        results = self._sdk._await_job_completion(job_id)
+        results = self._sdk._await_job_completion_sync(job_id)
         if results is None or len(results) == 0:
             print("This workflow did not return any results.")
         self._ran_job_id = job_id

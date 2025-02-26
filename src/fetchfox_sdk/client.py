@@ -8,6 +8,10 @@ from urllib.parse import urljoin, urlencode
 import os
 import sys
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
+import threading
+
 from .workflow import Workflow
 
 logger = logging.getLogger('fetchfox')
@@ -44,6 +48,7 @@ class FetchFox:
         }
 
         self.quiet = False
+
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
                     params: Optional[dict] = None) -> dict:
@@ -287,30 +292,18 @@ class FetchFox:
         """
         return self._request('GET', f'jobs/{job_id}')
 
-    def _await_job_completion(self, job_id: str, poll_interval: float = 5.0,
-            full_response: bool = False, keep_urls: bool = False):
-        """Wait for a job to complete and return the resulting items or full
-        response.
-
-        Use "get_job_status()" if you want to manage polling yourself.
-
-        Args:
-            job_id: the id of the job, as returned by run_workflow()
-            poll_interval: in seconds
-            full_response: defaults to False, so we return the result_items only.  Pass full_response=True if you want to access the entire body of the final response.
-            keep_urls: defaults to False so result items match the given item template.  Set to true to include the "_url" property.  Not necessary if _url is the ONLY key.
-        """
-
+    def _poll_status_once(self, job_id):
+        """Poll until we get one status response.  This may be more than one poll,
+        if it is the first one, since the job will 404 for a while before
+        it is scheduled."""
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
-        self._nqprint(f"Waiting for job [{job_id}] to finish: ")
-
         while True:
-
             try:
                 status = self._get_job_status(job_id)
-                self._nqprint(".", end="")
+                self._nqprint("-", end="")
                 sys.stdout.flush()
+                return status
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
 
@@ -324,44 +317,60 @@ class FetchFox:
                             raise RuntimeError(
                                 f"Job {job_id} is taking unusually long to schedule.")
 
-                    status = {}
-
                 else:
                     raise
+
+    def _cleanup_job_result_item(self, item):
+        filtered_item = {
+            k: v
+            for k, v
+            in item.items()
+            if not k.startswith('_')
+        }
+
+        # TODO: What should we be doing with `_url`?
+        # # Keep _url if we have no other keys
+        # if not filtered_item and '_url' in item:
+        filtered_item['_url'] = item['_url']
+        return filtered_item
+
+    def _await_job_completion_sync(self, job_id: str, poll_interval: float = 5.0):
+        """Wait for a job to complete and return the resulting items or full
+        response.
+
+        Use "get_job_status()" if you want to manage polling yourself.
+
+        Args:
+            job_id: the id of the job, as returned by run_workflow()
+            poll_interval: in seconds
+            full_response: defaults to False, so we return the result_items only.  Pass full_response=True if you want to access the entire body of the final response.
+            keep_urls: defaults to False so result items match the given item template.  Set to true to include the "_url" property.  Not necessary if _url is the ONLY key.
+        """
+        self._nqprint(f"Waiting for job [{job_id}] to finish: ")
+
+        while True:
+            status = self._poll_status_once(job_id)
 
             if status.get('done'):
                 self._nqprint("\n")
 
-                if full_response:
-                    return status
-
-                # Otherwise, process the status into result items that match
-                # the item_template (optionally retaining _url for find_urls())
                 try:
                     full_items = status['results']['items']
                 except KeyError:
-                    nqprint("No results.")
+                    self._nqprint("No results.")
                     return None
 
-                stripped_items = []
-                for item in full_items:
-                    # First get just the non-underscore keys
-                    filtered_item = {
-                        k: v
-                        for k, v
-                        in item.items()
-                        if not k.startswith('_')
-                    }
-
-                    # Keep _url if explicitly requested OR if we have no other keys
-                    if (keep_urls or not filtered_item) and '_url' in item:
-                        filtered_item['_url'] = item['_url']
-
-                    stripped_items.append(filtered_item)
-
-                return stripped_items
+                return [
+                    self._cleanup_job_result_item(item)
+                    for item
+                    in full_items
+                ]
+            else:
+                self._nqprint(".", end="")
+                sys.stdout.flush()
 
             time.sleep(poll_interval)
+
 
     def extract(self, url_or_urls, *args, **kwargs):
         """Extract items from a given URL, given an item template.
