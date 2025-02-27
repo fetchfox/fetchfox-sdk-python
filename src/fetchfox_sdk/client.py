@@ -48,6 +48,9 @@ class FetchFox:
         }
 
         self.quiet = False
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        # TODO: this needs to be changed to support concurrent job polling,
+        # but I am setting it to 1 right now as a sanity-check
 
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
@@ -301,12 +304,16 @@ class FetchFox:
         while True:
             try:
                 status = self._get_job_status(job_id)
-                self._nqprint("-", end="")
+                self._nqprint(".", end="")
                 sys.stdout.flush()
+
+                #TODO print partial status?
+
                 return status
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-
+                    self._nqprint("x", end="")
+                    sys.stdout.flush()
                     logger.info("Waiting for job %s to be scheduled.", job_id)
 
                     if started_waiting_for_job_dt is None:
@@ -334,7 +341,7 @@ class FetchFox:
         filtered_item['_url'] = item['_url']
         return filtered_item
 
-    def _await_job_completion_sync(self, job_id: str, poll_interval: float = 5.0):
+    def _wait_for_all_job_result_items(self, job_id: str, poll_interval: float = 5.0):
         """Wait for a job to complete and return the resulting items or full
         response.
 
@@ -355,7 +362,7 @@ class FetchFox:
                 self._nqprint("\n")
 
                 try:
-                    full_items = status['results']['items']
+                    result_items = status['results']['items']
                 except KeyError:
                     self._nqprint("No results.")
                     return None
@@ -363,13 +370,39 @@ class FetchFox:
                 return [
                     self._cleanup_job_result_item(item)
                     for item
-                    in full_items
+                    in result_items
                 ]
             else:
-                self._nqprint(".", end="")
+                self._nqprint("_", end="")
                 sys.stdout.flush()
 
             time.sleep(poll_interval)
+
+    def _job_result_items_gen(self, job_id):
+        """Yield new result items as they arrive."""
+
+        seen_ids = set()
+
+        while True:
+            response = self._poll_status_once(job_id)
+
+            # We are considering only the result_items here, not partials
+            if 'items' not in response['results']:
+                continue
+
+            for job_result_item in response['results']['items']:
+                jri_id = job_result_item['_meta']['id']
+                if jri_id not in seen_ids:
+                    seen_ids.add(jri_id)
+                    yield self._cleanup_job_result_item(job_result_item)
+
+            if response.get("done") == True:
+                break
+
+            time.sleep(1)
+
+
+
 
 
     def extract(self, url_or_urls, *args, **kwargs):

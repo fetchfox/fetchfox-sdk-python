@@ -28,7 +28,7 @@ class Workflow:
         Returns results as ResultItem objects for easier attribute access.
         """
         if not self.has_results:
-            self.run()
+            self.run__block_until_done()
 
         return [ResultItem(item) for item in self._results]
 
@@ -123,7 +123,7 @@ class Workflow:
     #TODO: refresh?
     #Force a re-run, even though results are present?
 
-    def run(self) -> List[Dict]:
+    def run__block_until_done(self) -> List[Dict]:
         """Execute the workflow and return results.
 
         Note that running the workflow will attach the results to it.  After it
@@ -132,12 +132,22 @@ class Workflow:
         """
         logger.debug("Running workflow.")
         job_id = self._sdk._run_workflow(workflow=self)
-        results = self._sdk._await_job_completion_sync(job_id)
+        results = self._sdk._wait_for_all_job_result_items(job_id)
         if results is None or len(results) == 0:
             print("This workflow did not return any results.")
         self._ran_job_id = job_id
         self._results = results
         return self._results
+
+    def results_gen(self):
+        logger.debug("Streaming Results")
+        if not self.has_results or len(self._results) == 0:
+            job_id = self._sdk._run_workflow(workflow=self)
+            for item in self._sdk._job_result_items_gen(job_id):
+                yield ResultItem(item)
+        else:
+            yield from self.results #yield ResultItems
+
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
