@@ -1,7 +1,7 @@
 import fetchfox_sdk
 from pprint import pprint
 
-fox = fetchfox_sdk.FetchFoxSDK()
+fox = fetchfox_sdk.FetchFox()
 
 STATUS_URL = "https://status.openai.com/"
 
@@ -19,18 +19,9 @@ incident_item_template = {
     'impact_level':
         "The incident title has an html class that describes the impact level."
         "Please provide the impact level for the incident here."
-    #"impact_level": "What is the severity of the incident?"
 }
 
-# NOTE: impact-level is hit or miss with the simpler prompting.
-# may be more reliable with the better instruction, but impressive that it
-# gets it sometimes anyway.
+incidents = fox.extract(STATUS_URL, incident_item_template)
 
-consistent_results = \
-    fox.just_extract(
-        STATUS_URL,
-        item_template=incident_item_template
-    )
-
-print("Ran extract with template:")
-pprint(consistent_results)
+for incident in incidents:
+    print(f"  {incident}")
