@@ -26,6 +26,9 @@ class Workflow:
         self._results = None
         self._ran_job_id = None
         self._future = None
+        self._callback_thread = None
+        self._stop_callback = threading.Event()
+        self._lock = threading.Lock()
 
     @property
     def all_results(self):
@@ -156,7 +159,7 @@ class Workflow:
         else:
             yield from self.all_results #yields ResultItems
 
-    def _future_done(self, future):
+    def _future_done_cb(self, future):
         """Done-callback: triggered when the future completes
         (success, fail, or cancelled).
         We store final results if everything’s okay;
@@ -167,8 +170,15 @@ class Workflow:
         else:
             self._future = None
 
-
     def results_future(self):
+        """Returns a plain concurrent.futures.Future object that yields ALL results
+        when the job is complete.  Access the_future.result() to block, or use
+        the_future.done() to check for completion without any blocking.
+
+        If we already have results, they will be immediately available in the
+        `future.result()`
+        """
+
         if self._results is not None:
             # Already have final results: return a completed future
             completed_future = concurrent.futures.Future()
@@ -180,8 +190,21 @@ class Workflow:
             return self._future
 
         self._future = self._executor.submit(self._run__block_until_done)
-        self._future.add_done_callback(self._future_done)
+        self._future.add_done_callback(self._future_done_cb)
         return self._future
+
+    def run_with_callback_for_new_items(self, on_item):
+        """Run this workflow in the background.  Provide a callback function
+        and this function will be called each time a new result item arrives.
+
+        Args:
+            on_item: Function that accepts a single result item as input.  Will be run
+                upon each new result item as they arrive.
+        """
+        with self._lock:
+            # Do not use
+
+
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
