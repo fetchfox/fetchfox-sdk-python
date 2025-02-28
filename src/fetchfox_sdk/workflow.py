@@ -138,7 +138,7 @@ class Workflow:
         NOT the steps of this workflow.
         """
         logger.debug("Running workflow to completion")
-        list(self._results_gen()) #not returned, executed for side effect
+        return list(self._results_gen())
 
     def _results_gen(self):
         """Generator yields results as they are available from the job.
@@ -156,7 +156,7 @@ class Workflow:
         else:
             yield from self.all_results #yields ResultItems
 
-    def _future_done(self):
+    def _future_done(self, future):
         """Done-callback: triggered when the future completes
         (success, fail, or cancelled).
         We store final results if everything’s okay;
@@ -168,7 +168,7 @@ class Workflow:
             self._future = None
 
 
-    def results_future():
+    def results_future(self):
         if self._results is not None:
             # Already have final results: return a completed future
             completed_future = concurrent.futures.Future()
