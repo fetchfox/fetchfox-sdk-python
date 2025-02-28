@@ -23,14 +23,17 @@ class Workflow:
         self._ran_job_id = None
 
     @property
-    def results(self):
-        """Get the results, executing the query if necessary.
+    def all_results(self):
+        """Get all results, executing the query if necessary, blocks until done.
         Returns results as ResultItem objects for easier attribute access.
         """
         if not self.has_results:
-            self.run__block_until_done()
+            self._run__block_until_done()
 
         return [ResultItem(item) for item in self._results]
+
+    def results(self):
+        yield from self._results_gen()
 
     @property
     def has_results(self):
@@ -54,8 +57,7 @@ class Workflow:
         Accessing the results property will execute the workflow if necessary.
         """
         # Use the results property which already returns ResultItems
-        for item in self.results:
-            yield item
+        yield from self.results()
 
     def __getitem__(self, key):
         """Allow indexing into the workflow results.
@@ -67,25 +69,25 @@ class Workflow:
             key: Can be an integer index or a slice
         """
         # Results property already returns ResultItems
-        return self.results[key]
+        return self.all_results[key]
 
     def __bool__(self):
         """Return True if the workflow has any results, False otherwise.
         Accessing the results property will execute the workflow if necessary.
         """
-        return bool(self.results)
+        return bool(self.all_results)
 
     def __len__(self):
         """Return the number of results.
         Accessing the results property will execute the workflow if necessary.
         """
-        return len(self.results)
+        return len(self.all_results)
 
     def __contains__(self, item):
         """Check if an item exists in the results.
         Accessing the results property will execute the workflow if necessary.
         """
-        return item in self.results
+        return item in self.all_results
 
     def _clone(self):
         """Create a new instance with copied workflow OR copied results"""
@@ -123,31 +125,31 @@ class Workflow:
     #TODO: refresh?
     #Force a re-run, even though results are present?
 
-    def run__block_until_done(self) -> List[Dict]:
+    def _run__block_until_done(self) -> List[Dict]:
         """Execute the workflow and return results.
 
         Note that running the workflow will attach the results to it.  After it
         has results, derived workflows will be given the _results_ from this workflow,
         NOT the steps of this workflow.
         """
-        logger.debug("Running workflow.")
-        job_id = self._sdk._run_workflow(workflow=self)
-        results = self._sdk._wait_for_all_job_result_items(job_id)
-        if results is None or len(results) == 0:
-            print("This workflow did not return any results.")
-        self._ran_job_id = job_id
-        self._results = results
-        return self._results
+        logger.debug("Running workflow to completion")
+        list(self._results_gen()) #not returned, executed for side effect
 
-    def results_gen(self):
+    def _results_gen(self):
+        """Generator yields results as they are available from the job.
+        Attaches results to workflow as it proceeds, so they are later available
+        without running again.
+        """
+
         logger.debug("Streaming Results")
-        if not self.has_results or len(self._results) == 0:
+        if not self.has_results:
+            self._results = []
             job_id = self._sdk._run_workflow(workflow=self)
             for item in self._sdk._job_result_items_gen(job_id):
+                self._results.append(item)
                 yield ResultItem(item)
         else:
-            yield from self.results #yield ResultItems
-
+            yield from self.all_results #yields ResultItems
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.

@@ -380,6 +380,7 @@ class FetchFox:
 
     def _job_result_items_gen(self, job_id):
         """Yield new result items as they arrive."""
+        self._nqprint(f"Streaming results from: [{job_id}]: ")
 
         seen_ids = set()
 
@@ -400,7 +401,6 @@ class FetchFox:
                 break
 
             time.sleep(1)
-
 
 
 
