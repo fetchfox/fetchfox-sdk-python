@@ -341,43 +341,6 @@ class FetchFox:
         filtered_item['_url'] = item['_url']
         return filtered_item
 
-    def _wait_for_all_job_result_items(self, job_id: str, poll_interval: float = 5.0):
-        """Wait for a job to complete and return the resulting items or full
-        response.
-
-        Use "get_job_status()" if you want to manage polling yourself.
-
-        Args:
-            job_id: the id of the job, as returned by run_workflow()
-            poll_interval: in seconds
-            full_response: defaults to False, so we return the result_items only.  Pass full_response=True if you want to access the entire body of the final response.
-            keep_urls: defaults to False so result items match the given item template.  Set to true to include the "_url" property.  Not necessary if _url is the ONLY key.
-        """
-        self._nqprint(f"Waiting for job [{job_id}] to finish: ")
-
-        while True:
-            status = self._poll_status_once(job_id)
-
-            if status.get('done'):
-                self._nqprint("\n")
-
-                try:
-                    result_items = status['results']['items']
-                except KeyError:
-                    self._nqprint("No results.")
-                    return None
-
-                return [
-                    self._cleanup_job_result_item(item)
-                    for item
-                    in result_items
-                ]
-            else:
-                self._nqprint("_", end="")
-                sys.stdout.flush()
-
-            time.sleep(poll_interval)
-
     def _job_result_items_gen(self, job_id):
         """Yield new result items as they arrive."""
         self._nqprint(f"Streaming results from: [{job_id}]: ")
@@ -401,9 +364,6 @@ class FetchFox:
                 break
 
             time.sleep(1)
-
-
-
 
     def extract(self, url_or_urls, *args, **kwargs):
         """Extract items from a given URL, given an item template.
