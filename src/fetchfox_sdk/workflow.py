@@ -4,12 +4,16 @@ import json
 import csv
 from typing import Optional, Dict, Any, List, Generator, Union
 import logging
+import concurrent.futures
 
 from .result_item import ResultItem
 
 logger = logging.getLogger('fetchfox')
 
 class Workflow:
+
+    _executor = concurrent.futures.ThreadPoolExecutor()
+
     def __init__(self, sdk_context):
 
         self._sdk = sdk_context
@@ -21,6 +25,7 @@ class Workflow:
 
         self._results = None
         self._ran_job_id = None
+        self._future = None
 
     @property
     def all_results(self):
@@ -150,6 +155,33 @@ class Workflow:
                 yield ResultItem(item)
         else:
             yield from self.all_results #yields ResultItems
+
+    def _future_done(self):
+        """Done-callback: triggered when the future completes
+        (success, fail, or cancelled).
+        We store final results if everything’s okay;
+        otherwise, we can handle exceptions.
+        """
+        if not future.cancelled():
+            self._results = future.result()
+        else:
+            self._future = None
+
+
+    def results_future():
+        if self._results is not None:
+            # Already have final results: return a completed future
+            completed_future = concurrent.futures.Future()
+            completed_future.set_result(self._results)
+            self._future = completed_future
+
+        if self._future is not None:
+            # Already started, so reuse existing future
+            return self._future
+
+        self._future = self._executor.submit(self._run__block_until_done)
+        self._future.add_done_callback(self._future_done)
+        return self._future
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
