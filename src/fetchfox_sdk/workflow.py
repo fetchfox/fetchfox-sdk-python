@@ -257,7 +257,6 @@ class Workflow:
         if thread is not None:
             thread.join()
 
-
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
 

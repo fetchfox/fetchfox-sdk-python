@@ -358,6 +358,7 @@ class FetchFox:
                 jri_id = job_result_item['_meta']['id']
                 if jri_id not in seen_ids:
                     seen_ids.add(jri_id)
+                    print("")
                     yield self._cleanup_job_result_item(job_result_item)
 
             if response.get("done") == True:
@@ -391,7 +392,7 @@ class FetchFox:
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """
-        return self._workflow(url_or_urls).extract(*args, *kwargs)
+        return self._workflow(url_or_urls).extract(*args, **kwargs)
 
     def init(self, url_or_urls, *args, **kwargs):
         """Initialize the workflow with one or more URLs.
