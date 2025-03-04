@@ -9,53 +9,50 @@ city_pages = \
     	"https://locations.traderjoes.com/pa/",
     	{"url": "Find me all the URLs for the city directories"}
     )
-
 # City pages is a workflow.  It will not be executed until the results are
-# needed somewhere.  When they are needed, that operation will block until
-# they are ready.
+# needed somewhere.
 
+# Here, we'll directly trigger execution and take a look at some intermediate
+# results:
+list_of_city_pages = list(city_pages)
+
+# That yields:
+#  list_of_city_pages = [
+#     {'url': 'https://locations.traderjoes.com/pa/ardmore/'},
+#     {'url': 'https://locations.traderjoes.com/pa/berwyn/'},
+#	  <...>
+#  ]
+
+# city_pages is now carrying those results with it.
+
+# We can derive multiple workflows from the one that already has results now.
+
+# Let's try two different ways of extracting the same type of item.
+# We want items like this:
 store_item_template = {
     "store_address": "find me the address of the store",
     "store_number": "Find me the number of the store (it's in parentheses)",
     "store_phone": "Find me the phone number of the store"
 }
 
+store_url_template = {
+	"url": "The URLs of the store detail pages, for each individual store."
+}
+
+
+#TJ is the wrong example.
+# We want to demonstrate, in particular, branching a workflow to extract two
+# different types of mutually exclusive things from the same results.
+# Maybe "top ten posts", but in one flow we follow the username links to their profiles
+# and find their karma, but in another flow we follow the post URLs to get something
+
+
+# The first thing we'll do is extract store_items directly from the
+# city index pages:
 store_info = city_pages.extract(store_item_template)
 
-# store_info is a workflow that extends city_pages.  Since this extension
-# does not depend on any results having been obtained already, no execution
-# will occur yet.
-
-
-# here, we'll directly trigger execution.
-
-list_of_city_pages = list(city_pages)
-#That yields:
-#  list_of_city_pages = [
-#     {'url': 'https://locations.traderjoes.com/pa/ardmore/'},
-#     {'url': 'https://locations.traderjoes.com/pa/berwyn/'},
-#     {'url': 'https://locations.traderjoes.com/pa/camp-hill/'},
-#     {'url': 'https://locations.traderjoes.com/pa/jenkintown/'},
-#     {'url': 'https://locations.traderjoes.com/pa/king-of-prussia/'},
-#     {'url': 'https://locations.traderjoes.com/pa/media/'},
-#     {'url': 'https://locations.traderjoes.com/pa/north-wales/'},
-#     {'url': 'https://locations.traderjoes.com/pa/philadelphia/'},
-#     {'url': 'https://locations.traderjoes.com/pa/pittsburgh/'},
-#     {'url': 'https://locations.traderjoes.com/pa/state-college/'}
-# ]
-# AND
-# city_pages is now carrying results with it.
-
-# So, then, when we do something like the below, we are extending a workflow
-# that has results.
-# In this case, the first step will not be re-executed.  Instead we will
-# initialize an empty workflow (which carries the already-computed results)
-# and extend *that* with this new step.
-store_urls = city_pages.extract(
-    item_template = {
-        "url": "Find me the URLs of Store detail pages."
-    }
-)
+# The other thing we'll try is
+store_urls = city_pages.extract({"url": "The URLs of Store detail pages."})
 # Now `store_urls` is a workflow which is seeded with those URLs that we
 # also have stored in `list_of_city_pages`.
 # When `store_urls` is executed, we will ONLY execute this new extraction

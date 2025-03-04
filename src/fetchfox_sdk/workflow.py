@@ -37,7 +37,7 @@ class Workflow:
         Returns results as ResultItem objects for easier attribute access.
         """
         if not self.has_results:
-            self._run__block_until_done()
+            self._run__block_until_done() # writes to self._results
 
         return [ResultItem(item) for item in self._results]
 
@@ -154,6 +154,7 @@ class Workflow:
         if not self.has_results:
             self._results = []
             job_id = self._sdk._run_workflow(workflow=self)
+            self._ran_job_id = job_id #track that we have ran
             for item in self._sdk._job_result_items_gen(job_id):
                 self._results.append(item)
                 yield ResultItem(item)
@@ -304,39 +305,34 @@ class Workflow:
             raise FileExistsError(
                 f"File {filename} already exists. Use overwrite=True to overwrite.")
 
-        # Manually controlled here for clarity -
-        # we could just use ".results" but then we don't want the ResultItems
-        # here anyway, and using ._results won't trigger execution.
-        if not self.has_run:
-            self.run()
+        if self.has_run:
+            if not self.has_results:
+                raise RuntimeError("A job ran, but there are no results.")
 
-        # Now, we should certainly have a job ID, or something has gone
-        # unexpectedly poorly.
-        if not self._ran_job_id:
-            raise RuntimeError(
-                "There may have been an uncaught problem running the job.")
+            # If it has run, and results is not None, results could still be []
+            # anyway, accessing it here won't trigger another run
+            if len(self.all_results) < 1:
+                if os.path.exists(filename) and overwrite:
+                    raise RuntimeError("No results.  Refusing to overwrite.")
+                else:
+                    print("No results to export.")
 
-        # Not every workflow is going to yield results
-        if not self._results or len(self._results) < 1:
-            # TODO: maybe it's OK to fail silently here, but I don't want to
-            # overwrite possible earlier results in the case of a failure.
-            raise RuntimeError(
-                "There are not results to export.  Bailing here rather than "
-                "writing an empty file.")
+        # Now we access the magic property, so execution will occur if needed
+        raw_results = [ dict(result_item) for result_item in self.all_results ]
 
         if filename.endswith('.csv'):
             fieldnames = set()
-            for item in self._results:
+            for item in raw_results:
                 fieldnames.update(item.keys())
 
             with open(filename, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=sorted(fieldnames))
                 writer.writeheader()
-                writer.writerows(self._results)
+                writer.writerows(raw_results)
 
         else:
             with open(filename, 'w') as f:
-                for item in self._results:
+                for item in raw_results:
                     f.write(json.dumps(item) + '\n')
 
 

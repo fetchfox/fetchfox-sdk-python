@@ -42,5 +42,5 @@ all_bikes = list(filtered_bikes)
 first_bike = filtered_bikes[0]
 
 # We can also export the results to CSV or JSONL files:
-filtered_bikes.export("bikes.json", overwrite=True)
+filtered_bikes.export("bikes.jsonl", overwrite=True)
 filtered_bikes.export("bikes.csv", overwrite=True)
