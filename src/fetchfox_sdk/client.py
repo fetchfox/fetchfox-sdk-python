@@ -311,7 +311,7 @@ class FetchFox:
 
                 return status
             except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 404:
+                if e.response.status_code in [404, 500]:
                     self._nqprint("x", end="")
                     sys.stdout.flush()
                     logger.info("Waiting for job %s to be scheduled.", job_id)
