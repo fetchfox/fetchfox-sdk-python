@@ -2,14 +2,12 @@ import fetchfox_sdk
 from pprint import pprint
 import logging
 
-fox = fetchfox_sdk.FetchFoxSDK()
+fox = fetchfox_sdk.FetchFox()
 
-city_pages = fox \
-    .workflow("https://locations.traderjoes.com/pa/") \
-    .extract(
-        item_template = {
-            "url": "Find me all the URLs for the city directories"
-        }
+city_pages = \
+	fox.extract(
+    	"https://locations.traderjoes.com/pa/",
+    	{"url": "Find me all the URLs for the city directories"}
     )
 
 # City pages is a workflow.  It will not be executed until the results are
@@ -22,7 +20,7 @@ store_item_template = {
     "store_phone": "Find me the phone number of the store"
 }
 
-store_info = city_pages.extract(item_template=store_item_template)
+store_info = city_pages.extract(store_item_template)
 
 # store_info is a workflow that extends city_pages.  Since this extension
 # does not depend on any results having been obtained already, no execution

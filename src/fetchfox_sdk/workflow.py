@@ -285,24 +285,24 @@ class Workflow:
     def configure_params(self, params) -> "Workflow":
         raise NotImplementedError()
 
-    def export(self, filename: str, force_overwrite: bool = False) -> None:
+    def export(self, filename: str, overwrite: bool = False) -> None:
         """Execute workflow and save results to file.
 
         Args:
             filename: Path to output file, must end with .csv or .jsonl
-            force_overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
+            overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
 
         Raises:
             ValueError: If filename doesn't end with .csv or .jsonl
-            FileExistsError: If file exists and force_overwrite is False
+            FileExistsError: If file exists and overwrite is False
         """
 
         if not (filename.endswith('.csv') or filename.endswith('.jsonl')):
             raise ValueError("Output filename must end with .csv or .jsonl")
 
-        if os.path.exists(filename) and not force_overwrite:
+        if os.path.exists(filename) and not overwrite:
             raise FileExistsError(
-                f"File {filename} already exists. Use force_overwrite=True to overwrite.")
+                f"File {filename} already exists. Use overwrite=True to overwrite.")
 
         # Manually controlled here for clarity -
         # we could just use ".results" but then we don't want the ResultItems

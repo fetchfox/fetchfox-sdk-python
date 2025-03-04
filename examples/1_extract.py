@@ -1,5 +1,4 @@
 import fetchfox_sdk
-from pprint import pprint
 
 fox = fetchfox_sdk.FetchFox()
 
