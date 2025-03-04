@@ -345,21 +345,43 @@ class FetchFox:
         """Yield new result items as they arrive."""
         self._nqprint(f"Streaming results from: [{job_id}]: ")
 
-        seen_ids = set()
+        seen_ids = set() # We need to track which have been yielded already
+
+        MAX_WAIT_FOR_CHANGE_MINUTES = 5
+        # Job will be assumed done/stalled after this much time passes without
+        # a new result coming in.
+        first_response_dt = None
+        results_changed_dt = None
 
         while True:
             response = self._poll_status_once(job_id)
+            # The above will block until we get one successful response
+            if not first_response_dt:
+                first_response_dt = datetime.now()
 
             # We are considering only the result_items here, not partials
             if 'items' not in response['results']:
+                waited_dur = datetime.now() - first_response_dt
+                if waited_dur > timedelta(minutes=MAX_WAIT_FOR_CHANGE_MINUTES):
+                    raise RuntimeError(
+                        "This job is taking too long - please retry.")
                 continue
 
             for job_result_item in response['results']['items']:
                 jri_id = job_result_item['_meta']['id']
                 if jri_id not in seen_ids:
+                    # We have a new result_item
+                    results_changed_dt = datetime.now()
                     seen_ids.add(jri_id)
                     print("")
                     yield self._cleanup_job_result_item(job_result_item)
+
+            if results_changed_dt:
+                waited_dur2 = results_changed_dt - datetime.now()
+                if waited_dur2 > timedelta(minutes=MAX_WAIT_FOR_CHANGE_MINUTES):
+                    # It has been too long since we've seen a new result, so
+                    # we will assume the job is stalled on the server
+                    break
 
             if response.get("done") == True:
                 break
