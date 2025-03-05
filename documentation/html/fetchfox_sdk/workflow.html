@@ -46,6 +46,9 @@ hljs.highlightAll();
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">class Workflow:
+
+    _executor = concurrent.futures.ThreadPoolExecutor()
+
     def __init__(self, sdk_context):
 
         self._sdk = sdk_context
@@ -57,16 +60,20 @@ hljs.highlightAll();
 
         self._results = None
         self._ran_job_id = None
+        self._future = None
 
     @property
-    def results(self):
-        &#34;&#34;&#34;Get the results, executing the query if necessary.
+    def all_results(self):
+        &#34;&#34;&#34;Get all results, executing the query if necessary, blocks until done.
+        Returns results as ResultItem objects for easier attribute access.
         &#34;&#34;&#34;
-        if self._results is not None:
-            return self._results
-        else:
-            self.run()
-            return self._results
+        if not self.has_results:
+            self._run__block_until_done() # writes to self._results
+
+        return [ResultItem(item) for item in self._results]
+
+    def results(self):
+        yield from self._results_gen()
 
     @property
     def has_results(self):
@@ -76,11 +83,21 @@ hljs.highlightAll();
             return False
         return True
 
-    def __iter__(self):
+    @property
+    def has_run(self):
+        &#34;&#34;&#34;If this workflow has been executed before (even if there were no
+        results)
+        &#34;&#34;&#34;
+        if self._ran_job_id is not None:
+            return True
+        return False
+
+    def __iter__(self) -&gt; Generator[ResultItem, None, None]:
         &#34;&#34;&#34;Make the workflow iterable.
         Accessing the results property will execute the workflow if necessary.
         &#34;&#34;&#34;
-        return iter(self.results)
+        # Use the results property which already returns ResultItems
+        yield from self.results()
 
     def __getitem__(self, key):
         &#34;&#34;&#34;Allow indexing into the workflow results.
@@ -91,45 +108,42 @@ hljs.highlightAll();
         Args:
             key: Can be an integer index or a slice
         &#34;&#34;&#34;
-        return self.results[key]
+        # Results property already returns ResultItems
+        return self.all_results[key]
 
     def __bool__(self):
         &#34;&#34;&#34;Return True if the workflow has any results, False otherwise.
         Accessing the results property will execute the workflow if necessary.
         &#34;&#34;&#34;
-        return bool(self.results)
+        return bool(self.all_results)
 
     def __len__(self):
         &#34;&#34;&#34;Return the number of results.
         Accessing the results property will execute the workflow if necessary.
         &#34;&#34;&#34;
-        return len(self.results)
+        return len(self.all_results)
 
     def __contains__(self, item):
         &#34;&#34;&#34;Check if an item exists in the results.
         Accessing the results property will execute the workflow if necessary.
         &#34;&#34;&#34;
-        return item in self.results
+        return item in self.all_results
 
     def _clone(self):
         &#34;&#34;&#34;Create a new instance with copied workflow OR copied results&#34;&#34;&#34;
-
-        #TODO: If there are results, can we simply pass them as consts?
-
         # check underlying, not property, because we don&#39;t want to trigger exec
-        if self._results is None: #TODO - check job_id ?
+        if self._results is None or len(self._results) &lt; 1:
             # If there are no results, we are extending the steps of this workflow
             # so that, when it runs, we&#39;ll produce the desired results
+            if self._ran_job_id is not None:
+                #TODO - anything else we should do when we&#39;ve run but no results?
+                logger.debug(&#34;Cloning a job that ran, but which had no results&#34;)
+
             new_instance = Workflow(self._sdk)
             new_instance._workflow = copy.deepcopy(self._workflow)
             return new_instance
         else:
-            # We purportedly have results
-            if len(self._results) &lt; 1:
-                raise NotImplementedError()
-                # TODO: what should happen in this case?
-
-            # We have more than zero results:
+            # We purportedly have more than zero results:
             # We are disposing of the steps that have been executed.
             # The results are now used for workflows that derive from this one,
             # This allows re-using a workflow to make many deriviatives without
@@ -141,6 +155,8 @@ hljs.highlightAll();
                     &#34;name&#34;: &#34;const&#34;,
                     &#34;args&#34;: {
                         &#34;items&#34;: copy.deepcopy(self._results)
+                        # We use the internal _results field, because it&#39;s a
+                        # list of dictionaries rather than ResultItems
                     }
                 }
             ]
@@ -149,33 +165,87 @@ hljs.highlightAll();
     #TODO: refresh?
     #Force a re-run, even though results are present?
 
-    def run(self) -&gt; List[Dict]:
+    def _run__block_until_done(self) -&gt; List[Dict]:
         &#34;&#34;&#34;Execute the workflow and return results.
 
         Note that running the workflow will attach the results to it.  After it
         has results, derived workflows will be given the _results_ from this workflow,
         NOT the steps of this workflow.
         &#34;&#34;&#34;
-        logger.debug(&#34;Running workflow.&#34;)
-        job_id = self._sdk._run_workflow(workflow=self)
-        results = self._sdk.await_job_completion(job_id)
-        if results is None or len(results) == 0:
-            print(&#34;This workflow did not return any results.&#34;)
-        self._ran_job_id = job_id
-        self._results = results
-        return self._results
+        logger.debug(&#34;Running workflow to completion&#34;)
+        return list(self._results_gen())
 
-    def init(self, url: str) -&gt; &#34;Workflow&#34;:
+    def _results_gen(self):
+        &#34;&#34;&#34;Generator yields results as they are available from the job.
+        Attaches results to workflow as it proceeds, so they are later available
+        without running again.
+        &#34;&#34;&#34;
 
-        #TODO: Do we need to allow other data here, params?
+        logger.debug(&#34;Streaming Results&#34;)
+        if not self.has_results:
+            self._results = []
+            job_id = self._sdk._run_workflow(workflow=self)
+            self._ran_job_id = job_id #track that we have ran
+            for item in self._sdk._job_result_items_gen(job_id):
+                self._results.append(item)
+                yield ResultItem(item)
+        else:
+            yield from self.all_results #yields ResultItems
+
+    def _future_done_cb(self, future):
+        &#34;&#34;&#34;Done-callback: triggered when the future completes
+        (success, fail, or cancelled).
+        We store final results if everything’s okay;
+        otherwise, we can handle exceptions.
+        &#34;&#34;&#34;
+        if not future.cancelled():
+            self._results = future.result()
+        else:
+            self._future = None
+
+    def results_future(self):
+        &#34;&#34;&#34;Returns a plain concurrent.futures.Future object that yields ALL results
+        when the job is complete.  Access the_future.result() to block, or use
+        the_future.done() to check for completion without any blocking.
+
+        If we already have results, they will be immediately available in the
+        `future.result()`
+        &#34;&#34;&#34;
+
+        if self._results is not None:
+            # Already have final results: return a completed future
+            completed_future = concurrent.futures.Future()
+            completed_future.set_result(self._results)
+            self._future = completed_future
+
+        if self._future is not None:
+            # Already started, so reuse existing future
+            return self._future
+
+        self._future = self._executor.submit(self._run__block_until_done)
+        self._future.add_done_callback(self._future_done_cb)
+        return self._future
+
+    def init(self, url: Union[str, List[str]]) -&gt; &#34;Workflow&#34;:
+        &#34;&#34;&#34;Initialize the workflow with one or more URLs.
+
+        Args:
+            url: Can be a single URL as a string, or a list of URLs.
+        &#34;&#34;&#34;
         #TODO: if used more than once, raise error and print helpful message
+        #TODO: do params here?
 
         new_instance = self._clone()
+
+        if isinstance(url, str):
+            items = [{&#34;url&#34;: url}]
+        else:
+            items = [{&#34;url&#34;: u} for u in url]
 
         new_instance._workflow[&#34;steps&#34;].append({
             &#34;name&#34;: &#34;const&#34;,
             &#34;args&#34;: {
-                &#34;items&#34;: [{&#34;url&#34;: url}],
+                &#34;items&#34;: items,
                 &#34;maxPages&#34;: 1 #TODO
             }
         })
@@ -184,46 +254,53 @@ hljs.highlightAll();
     def configure_params(self, params) -&gt; &#34;Workflow&#34;:
         raise NotImplementedError()
 
-    def export(self, filename: str, force_overwrite: bool = False) -&gt; None:
+    def export(self, filename: str, overwrite: bool = False) -&gt; None:
         &#34;&#34;&#34;Execute workflow and save results to file.
 
         Args:
             filename: Path to output file, must end with .csv or .jsonl
-            force_overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
+            overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
 
         Raises:
             ValueError: If filename doesn&#39;t end with .csv or .jsonl
-            FileExistsError: If file exists and force_overwrite is False
+            FileExistsError: If file exists and overwrite is False
         &#34;&#34;&#34;
 
         if not (filename.endswith(&#39;.csv&#39;) or filename.endswith(&#39;.jsonl&#39;)):
             raise ValueError(&#34;Output filename must end with .csv or .jsonl&#34;)
 
-        if os.path.exists(filename) and not force_overwrite:
+        if os.path.exists(filename) and not overwrite:
             raise FileExistsError(
-                f&#34;File {filename} already exists. Use force_overwrite=True to overwrite.&#34;)
+                f&#34;File {filename} already exists. Use overwrite=True to overwrite.&#34;)
 
-        if not self.results: #accessing this property will cache the results
-            if not self._ran_job_id:
-                raise RuntimeError(
-                    &#34;No results and no job_id - &#34;
-                    &#34;there may have been an uncaught problem running the job.&#34;)
-            else:
-                raise RuntimeError(&#34;Workflow produced no results&#34;)
+        if self.has_run:
+            if not self.has_results:
+                raise RuntimeError(&#34;A job ran, but there are no results.&#34;)
+
+            # If it has run, and results is not None, results could still be []
+            # anyway, accessing it here won&#39;t trigger another run
+            if len(self.all_results) &lt; 1:
+                if os.path.exists(filename) and overwrite:
+                    raise RuntimeError(&#34;No results.  Refusing to overwrite.&#34;)
+                else:
+                    self._sdk._nqprint(&#34;No results to export.&#34;)
+
+        # Now we access the magic property, so execution will occur if needed
+        raw_results = [ dict(result_item) for result_item in self.all_results ]
 
         if filename.endswith(&#39;.csv&#39;):
             fieldnames = set()
-            for item in self.results:
+            for item in raw_results:
                 fieldnames.update(item.keys())
 
             with open(filename, &#39;w&#39;, newline=&#39;&#39;) as f:
                 writer = csv.DictWriter(f, fieldnames=sorted(fieldnames))
                 writer.writeheader()
-                writer.writerows(self.results)
+                writer.writerows(raw_results)
 
         else:
             with open(filename, &#39;w&#39;) as f:
-                for item in self.results:
+                for item in raw_results:
                     f.write(json.dumps(item) + &#39;\n&#39;)
 
 
@@ -251,8 +328,21 @@ hljs.highlightAll();
             mode: &#39;single&#39;|&#39;multiple&#39;|&#39;auto&#39; - defaults to &#39;auto&#39;.  Set this to &#39;single&#39; if each URL has only a single item.  Set this to &#39;multiple&#39; if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
-            view: TODO - you may select a subset of the page content for processing
+            view: &#39;html&#39; | &#39;selectHtml&#39; | &#39;text&#39; - defaults to HTML (the full HTML).  Use &#39;selectHTML&#39; to have the AI see only text and links.  Use &#39;text&#39; to have the AI see only text.
         &#34;&#34;&#34;
+        # Validate field names to prevent collisions with ResultItem methods
+        RESERVED_PROPERTIES = {&#39;keys&#39;, &#39;items&#39;, &#39;values&#39;, &#39;to_dict&#39;, &#39;get&#39;}
+
+        for field_name in item_template.keys():
+            if field_name in RESERVED_PROPERTIES:
+                raise ValueError(
+                    f&#34;Field name &#39;{field_name}&#39; is a reserved property name. &#34;
+                    f&#34;Please choose a different field name. &#34;
+                    f&#34;Reserved names are: {&#39;, &#39;.join(RESERVED_PROPERTIES)}&#34;
+                )
+
+        if mode is not None and mode not in [&#34;single&#34;, &#34;multiple&#34;, &#34;auto&#34;]:
+            raise ValueError(&#34;Mode may only be &#39;single&#39;|&#39;multiple&#39;|&#39;auto&#39;&#34;)
 
         new_instance = self._clone()
 
@@ -261,7 +351,7 @@ hljs.highlightAll();
             &#34;args&#34;: {
                 &#34;questions&#34;: item_template,
                 &#34;maxPages&#34;: max_pages,
-                &#34;limit&#34;: limit
+                &#34;limit&#34;: limit,
             }
         }
 
@@ -269,14 +359,7 @@ hljs.highlightAll();
             new_step[&#39;args&#39;][&#39;view&#39;] = view
 
         if mode is not None:
-            if mode == &#39;single&#39;:
-                new_step[&#39;args&#39;][&#39;single&#39;] = True
-            elif mode == &#39;multiple&#39;:
-                new_step[&#39;args&#39;][&#39;single&#39;] = False
-            else:
-                raise ValueError(
-                    &#34;Allowable modes are &#39;single&#39;, &#39;multiple&#39; or &#39;auto&#39;&#34;)
-
+            new_step[&#39;args&#39;][&#39;mode&#39;] = mode
 
         new_instance._workflow[&#34;steps&#34;].append(new_step)
 
@@ -343,10 +426,29 @@ hljs.highlightAll();
         return self._workflow
 
     def to_json(self):
-        return json.dumps(self)</code></pre>
+        return json.dumps(self._workflow)</code></pre>
 </details>
 <h3>Instance variables</h3>
 <dl>
+<dt id="fetchfox_sdk.workflow.Workflow.all_results"><code class="name">prop <span class="ident">all_results</span></code></dt>
+<dd>
+<div class="desc"><p>Get all results, executing the query if necessary, blocks until done.
+Returns results as ResultItem objects for easier attribute access.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@property
+def all_results(self):
+    &#34;&#34;&#34;Get all results, executing the query if necessary, blocks until done.
+    Returns results as ResultItem objects for easier attribute access.
+    &#34;&#34;&#34;
+    if not self.has_results:
+        self._run__block_until_done() # writes to self._results
+
+    return [ResultItem(item) for item in self._results]</code></pre>
+</details>
+</dd>
 <dt id="fetchfox_sdk.workflow.Workflow.has_results"><code class="name">prop <span class="ident">has_results</span></code></dt>
 <dd>
 <div class="desc"><p>If you want to check whether a workflow has results already, but
@@ -364,22 +466,22 @@ def has_results(self):
     return True</code></pre>
 </details>
 </dd>
-<dt id="fetchfox_sdk.workflow.Workflow.results"><code class="name">prop <span class="ident">results</span></code></dt>
+<dt id="fetchfox_sdk.workflow.Workflow.has_run"><code class="name">prop <span class="ident">has_run</span></code></dt>
 <dd>
-<div class="desc"><p>Get the results, executing the query if necessary.</p></div>
+<div class="desc"><p>If this workflow has been executed before (even if there were no
+results)</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">@property
-def results(self):
-    &#34;&#34;&#34;Get the results, executing the query if necessary.
+def has_run(self):
+    &#34;&#34;&#34;If this workflow has been executed before (even if there were no
+    results)
     &#34;&#34;&#34;
-    if self._results is not None:
-        return self._results
-    else:
-        self.run()
-        return self._results</code></pre>
+    if self._ran_job_id is not None:
+        return True
+    return False</code></pre>
 </details>
 </dd>
 </dl>
@@ -392,7 +494,7 @@ def results(self):
 <div class="desc"></div>
 </dd>
 <dt id="fetchfox_sdk.workflow.Workflow.export"><code class="name flex">
-<span>def <span class="ident">export</span></span>(<span>self, filename: str, force_overwrite: bool = False) ‑> None</span>
+<span>def <span class="ident">export</span></span>(<span>self, filename: str, overwrite: bool = False) ‑> None</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Execute workflow and save results to file.</p>
@@ -400,7 +502,7 @@ def results(self):
 <dl>
 <dt><strong><code>filename</code></strong></dt>
 <dd>Path to output file, must end with .csv or .jsonl</dd>
-<dt><strong><code>force_overwrite</code></strong></dt>
+<dt><strong><code>overwrite</code></strong></dt>
 <dd>Defaults to False, which causes an error to be raised if the file exists already.
 Set it to true if you want to overwrite.</dd>
 </dl>
@@ -409,7 +511,7 @@ Set it to true if you want to overwrite.</dd>
 <dt><code>ValueError</code></dt>
 <dd>If filename doesn't end with .csv or .jsonl</dd>
 <dt><code>FileExistsError</code></dt>
-<dd>If file exists and force_overwrite is False</dd>
+<dd>If file exists and overwrite is False</dd>
 </dl></div>
 </dd>
 <dt id="fetchfox_sdk.workflow.Workflow.extract"><code class="name flex">
@@ -443,7 +545,9 @@ Defaults to one page only.</dd>
 <dt><strong><code>limit</code></strong></dt>
 <dd>limit the number of items yielded by this step</dd>
 <dt><strong><code>view</code></strong></dt>
-<dd>TODO - you may select a subset of the page content for processing</dd>
+<dd>'html' | 'selectHtml' | 'text' - defaults to HTML (the full HTML).
+Use 'selectHTML' to have the AI see only text and links.
+Use 'text' to have the AI see only text.</dd>
 </dl></div>
 </dd>
 <dt id="fetchfox_sdk.workflow.Workflow.filter"><code class="name flex">
@@ -461,10 +565,15 @@ Defaults to one page only.</dd>
 </dl></div>
 </dd>
 <dt id="fetchfox_sdk.workflow.Workflow.init"><code class="name flex">
-<span>def <span class="ident">init</span></span>(<span>self, url: str) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
+<span>def <span class="ident">init</span></span>(<span>self, url: Union[str, List[str]]) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
 </code></dt>
 <dd>
-<div class="desc"></div>
+<div class="desc"><p>Initialize the workflow with one or more URLs.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>url</code></strong></dt>
+<dd>Can be a single URL as a string, or a list of URLs.</dd>
+</dl></div>
 </dd>
 <dt id="fetchfox_sdk.workflow.Workflow.limit"><code class="name flex">
 <span>def <span class="ident">limit</span></span>(<span>self, n: int) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
@@ -472,15 +581,22 @@ Defaults to one page only.</dd>
 <dd>
 <div class="desc"><p>Limit the total number of results that this workflow will produce.</p></div>
 </dd>
-<dt id="fetchfox_sdk.workflow.Workflow.run"><code class="name flex">
-<span>def <span class="ident">run</span></span>(<span>self) ‑> List[Dict[~KT, ~VT]]</span>
+<dt id="fetchfox_sdk.workflow.Workflow.results"><code class="name flex">
+<span>def <span class="ident">results</span></span>(<span>self)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Execute the workflow and return results.</p>
-<p>Note that running the workflow will attach the results to it.
-After it
-has results, derived workflows will be given the <em>results</em> from this workflow,
-NOT the steps of this workflow.</p></div>
+<div class="desc"></div>
+</dd>
+<dt id="fetchfox_sdk.workflow.Workflow.results_future"><code class="name flex">
+<span>def <span class="ident">results_future</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns a plain concurrent.futures.Future object that yields ALL results
+when the job is complete.
+Access the_future.result() to block, or use
+the_future.done() to check for completion without any blocking.</p>
+<p>If we already have results, they will be immediately available in the
+<code>future.result()</code></p></div>
 </dd>
 <dt id="fetchfox_sdk.workflow.Workflow.to_dict"><code class="name flex">
 <span>def <span class="ident">to_dict</span></span>(<span>self) ‑> Dict[str, Any]</span>
@@ -530,15 +646,17 @@ will be filtered and will not be seen by the next step in your workflow.</p>
 <li>
 <h4><code><a title="fetchfox_sdk.workflow.Workflow" href="#fetchfox_sdk.workflow.Workflow">Workflow</a></code></h4>
 <ul class="two-column">
+<li><code><a title="fetchfox_sdk.workflow.Workflow.all_results" href="#fetchfox_sdk.workflow.Workflow.all_results">all_results</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.configure_params" href="#fetchfox_sdk.workflow.Workflow.configure_params">configure_params</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.export" href="#fetchfox_sdk.workflow.Workflow.export">export</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.extract" href="#fetchfox_sdk.workflow.Workflow.extract">extract</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.filter" href="#fetchfox_sdk.workflow.Workflow.filter">filter</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.has_results" href="#fetchfox_sdk.workflow.Workflow.has_results">has_results</a></code></li>
+<li><code><a title="fetchfox_sdk.workflow.Workflow.has_run" href="#fetchfox_sdk.workflow.Workflow.has_run">has_run</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.init" href="#fetchfox_sdk.workflow.Workflow.init">init</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.limit" href="#fetchfox_sdk.workflow.Workflow.limit">limit</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.results" href="#fetchfox_sdk.workflow.Workflow.results">results</a></code></li>
-<li><code><a title="fetchfox_sdk.workflow.Workflow.run" href="#fetchfox_sdk.workflow.Workflow.run">run</a></code></li>
+<li><code><a title="fetchfox_sdk.workflow.Workflow.results_future" href="#fetchfox_sdk.workflow.Workflow.results_future">results_future</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.to_dict" href="#fetchfox_sdk.workflow.Workflow.to_dict">to_dict</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.to_json" href="#fetchfox_sdk.workflow.Workflow.to_json">to_json</a></code></li>
 <li><code><a title="fetchfox_sdk.workflow.Workflow.unique" href="#fetchfox_sdk.workflow.Workflow.unique">unique</a></code></li>

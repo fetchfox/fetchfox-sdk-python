@@ -35,8 +35,8 @@ hljs.highlightAll();
 <section>
 <h2 class="section-title" id="header-classes">Classes</h2>
 <dl>
-<dt id="fetchfox_sdk.client.FetchFoxSDK"><code class="flex name class">
-<span>class <span class="ident">FetchFoxSDK</span></span>
+<dt id="fetchfox_sdk.client.FetchFox"><code class="flex name class">
+<span>class <span class="ident">FetchFox</span></span>
 <span>(</span><span>api_key: Optional[str] = None, host: str = 'https://fetchfox.ai', quiet=False)</span>
 </code></dt>
 <dd>
@@ -56,7 +56,7 @@ Overrides the environment variable.</dd>
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">class FetchFoxSDK:
+<pre><code class="python">class FetchFox:
     def __init__(self,
             api_key: Optional[str] = None, host: str = &#34;https://fetchfox.ai&#34;,
             quiet=False):
@@ -85,7 +85,11 @@ Overrides the environment variable.</dd>
             &#39;Authorization&#39;: f&#39;Bearer: {self.api_key}&#39;
         }
 
-        self.quiet = False
+        self.quiet = quiet
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        # TODO: this needs to be changed to support concurrent job polling,
+        # but I am setting it to 1 right now as a sanity-check
+
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
                     params: Optional[dict] = None) -&gt; dict:
@@ -111,14 +115,16 @@ Overrides the environment variable.</dd>
         response.raise_for_status()
         body = response.json()
 
-        logger.debug(f&#34;Response from %s %s:\n%s&#34;, method, path, pformat(body))
+        logger.debug(
+            f&#34;Response from %s %s:\n%s  at %s&#34;,
+            method, path, pformat(body), datetime.now())
         return body
 
     def _nqprint(self, *args, **kwargs):
         if not self.quiet:
             print(*args, **kwargs)
 
-    def workflow(self, url: str = None, params:dict = None) -&gt; &#34;Workflow&#34;:
+    def _workflow(self, url_or_urls: Union[str, List[str]] = None) -&gt; &#34;Workflow&#34;:
         &#34;&#34;&#34;Create a new workflow using this SDK instance.
 
         Examples of how to use a workflow:
@@ -188,10 +194,10 @@ Overrides the environment variable.</dd>
             params: Workflow parameters.
         &#34;&#34;&#34;
         w = Workflow(self)
-        if url:
-            w = w.init(url)
-        if params:
-            w = w.configure_params(params)
+        if url_or_urls:
+            w = w.init(url_or_urls)
+        # if params:
+        #     w = w.configure_params(params)
 
         return w
 
@@ -204,13 +210,12 @@ Overrides the environment variable.</dd>
         Args:
             json_workflow: This must be a valid JSON string that represents a Fetchfox Workflow.  You should not usually try to write these manually, but simply copy-paste from the web interface.
         &#34;&#34;&#34;
-        return self.workflow_from_dict(json.loads(json_workflow))
+        return self._workflow_from_dict(json.loads(json_workflow))
 
     def _workflow_from_dict(self, workflow_dict):
         w = Workflow(self)
         w._workflow = workflow_dict
         return w
-
 
     def workflow_by_id(self, workflow_id) -&gt; &#34;Workflow&#34;:
         &#34;&#34;&#34;Use a public workflow ID
@@ -218,10 +223,10 @@ Overrides the environment variable.</dd>
         Something like fox.workflow_by_id(ID).configure_params({state:&#34;AK&#34;}).export(&#34;blah.csv&#34;)
 
         &#34;&#34;&#34;
-        workflow_json = self.get_workflow(workflow_id)
+        workflow_json = self._get_workflow(workflow_id)
         return self.workflow_from_json(workflow_json)
 
-    def register_workflow(self, workflow: Workflow) -&gt; str:
+    def _register_workflow(self, workflow: Workflow) -&gt; str:
         &#34;&#34;&#34;Create a new workflow.
 
         Args:
@@ -237,7 +242,7 @@ Overrides the environment variable.</dd>
         # can be supplied, and then we return everything
         return response[&#39;id&#39;]
 
-    def get_workflows(self) -&gt; list:
+    def _get_workflows(self) -&gt; list:
         &#34;&#34;&#34;Get workflows
 
         Returns:
@@ -248,7 +253,7 @@ Overrides the environment variable.</dd>
         # NOTE: Should we return Workflow objects intead?
         return response[&#39;results&#39;]
 
-    def get_workflow(self, id) -&gt; dict:
+    def _get_workflow(self, id) -&gt; dict:
         &#34;&#34;&#34;Get a registered workflow by ID.&#34;&#34;&#34;
         response = self._request(&#34;GET&#34;, f&#34;workflow/{id}&#34;)
         return response
@@ -301,7 +306,7 @@ Overrides the environment variable.</dd>
             #   allow list-expansion here like above, pretty cool
 
         if workflow_id is None:
-            workflow_id = self.register_workflow(workflow) # type: ignore
+            workflow_id = self._register_workflow(workflow) # type: ignore
             logger.info(&#34;Registered new workflow with id: %s&#34;, workflow_id)
 
         #response = self._request(&#39;POST&#39;, f&#39;workflows/{workflow_id}/run&#39;, params or {})
@@ -312,7 +317,7 @@ Overrides the environment variable.</dd>
         # can be supplied, and then we return everything
         return response[&#39;jobId&#39;]
 
-    def get_job_status(self, job_id: str) -&gt; dict:
+    def _get_job_status(self, job_id: str) -&gt; dict:
         &#34;&#34;&#34;Get the status and results of a job.  Returns partial results before
         eventually returning the full results.
 
@@ -328,32 +333,25 @@ Overrides the environment variable.</dd>
         &#34;&#34;&#34;
         return self._request(&#39;GET&#39;, f&#39;jobs/{job_id}&#39;)
 
-    def await_job_completion(self, job_id: str, poll_interval: float = 5.0,
-            full_response: bool = False, keep_urls: bool = False):
-        &#34;&#34;&#34;Wait for a job to complete and return the resulting items or full
-        response.
-
-        Use &#34;get_job_status()&#34; if you want to manage polling yourself.
-
-        Args:
-            job_id: the id of the job, as returned by run_workflow()
-            poll_interval: in seconds
-            full_response: defaults to False, so we return the result_items only.  Pass full_response=True if you want to access the entire body of the final response.
-            keep_urls: defaults to False so result items match the given item template.  Set to true to include the &#34;_url&#34; property.  Not necessary if _url is the ONLY key.
-        &#34;&#34;&#34;
-
+    def _poll_status_once(self, job_id):
+        &#34;&#34;&#34;Poll until we get one status response.  This may be more than one poll,
+        if it is the first one, since the job will 404 for a while before
+        it is scheduled.&#34;&#34;&#34;
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
-        self._nqprint(f&#34;Waiting for job [{job_id}] to finish: &#34;)
-
         while True:
-
             try:
-                status = self.get_job_status(job_id)
+                status = self._get_job_status(job_id)
                 self._nqprint(&#34;.&#34;, end=&#34;&#34;)
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 404:
+                sys.stdout.flush()
 
+                #TODO print partial status?
+
+                return status
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code in [404, 500]:
+                    self._nqprint(&#34;x&#34;, end=&#34;&#34;)
+                    sys.stdout.flush()
                     logger.info(&#34;Waiting for job %s to be scheduled.&#34;, job_id)
 
                     if started_waiting_for_job_dt is None:
@@ -364,72 +362,72 @@ Overrides the environment variable.</dd>
                             raise RuntimeError(
                                 f&#34;Job {job_id} is taking unusually long to schedule.&#34;)
 
-                    status = {}
-
                 else:
                     raise
 
-            if status.get(&#39;done&#39;):
-                self._nqprint(&#34;\n&#34;)
+    def _cleanup_job_result_item(self, item):
+        filtered_item = {
+            k: v
+            for k, v
+            in item.items()
+            if not k.startswith(&#39;_&#39;)
+        }
 
-                if full_response:
-                    return status
+        # TODO: What should we be doing with `_url`?
+        # # Keep _url if we have no other keys
+        # if not filtered_item and &#39;_url&#39; in item:
+        filtered_item[&#39;_url&#39;] = item[&#39;_url&#39;]
+        return filtered_item
 
-                # Otherwise, process the status into result items that match
-                # the item_template (optionally retaining _url for find_urls())
-                try:
-                    full_items = status[&#39;results&#39;][&#39;items&#39;]
-                except KeyError:
-                    nqprint(&#34;No results.&#34;)
-                    return None
+    def _job_result_items_gen(self, job_id):
+        &#34;&#34;&#34;Yield new result items as they arrive.&#34;&#34;&#34;
+        self._nqprint(f&#34;Streaming results from: [{job_id}]: &#34;)
 
-                stripped_items = []
-                for item in full_items:
-                    # First get just the non-underscore keys
-                    filtered_item = {
-                        k: v
-                        for k, v
-                        in item.items()
-                        if not k.startswith(&#39;_&#39;)
-                    }
+        seen_ids = set() # We need to track which have been yielded already
 
-                    # Keep _url if explicitly requested OR if we have no other keys
-                    if (keep_urls or not filtered_item) and &#39;_url&#39; in item:
-                        filtered_item[&#39;_url&#39;] = item[&#39;_url&#39;]
+        MAX_WAIT_FOR_CHANGE_MINUTES = 5
+        # Job will be assumed done/stalled after this much time passes without
+        # a new result coming in.
+        first_response_dt = None
+        results_changed_dt = None
 
-                    stripped_items.append(filtered_item)
+        while True:
+            response = self._poll_status_once(job_id)
+            # The above will block until we get one successful response
+            if not first_response_dt:
+                first_response_dt = datetime.now()
 
-                return stripped_items
+            # We are considering only the result_items here, not partials
+            if &#39;items&#39; not in response[&#39;results&#39;]:
+                waited_dur = datetime.now() - first_response_dt
+                if waited_dur &gt; timedelta(minutes=MAX_WAIT_FOR_CHANGE_MINUTES):
+                    raise RuntimeError(
+                        &#34;This job is taking too long - please retry.&#34;)
+                continue
 
-            time.sleep(poll_interval)
+            for job_result_item in response[&#39;results&#39;][&#39;items&#39;]:
+                jri_id = job_result_item[&#39;_meta&#39;][&#39;id&#39;]
+                if jri_id not in seen_ids:
+                    # We have a new result_item
+                    results_changed_dt = datetime.now()
+                    seen_ids.add(jri_id)
+                    self._nqprint(&#34;&#34;)
+                    yield self._cleanup_job_result_item(job_result_item)
 
-    def _plan_extraction_from_url_and_prompt(self,
-            url: str, instruction: str) -&gt; Workflow:
+            if results_changed_dt:
+                waited_dur2 = results_changed_dt - datetime.now()
+                if waited_dur2 &gt; timedelta(minutes=MAX_WAIT_FOR_CHANGE_MINUTES):
+                    # It has been too long since we&#39;ve seen a new result, so
+                    # we will assume the job is stalled on the server
+                    break
 
-        fetch_response = self._request(&#39;GET&#39;, &#39;fetch&#39;, params={&#39;url&#39;: url})
-        html_url = fetch_response[&#39;html&#39;]
+            if response.get(&#34;done&#34;) == True:
+                break
 
-        plan_response = self._request(&#39;POST&#39;, &#39;plan/from-prompt&#39;, {
-            &#34;prompt&#34;: instruction,
-            &#34;urls&#34;: [url],
-            &#34;html&#34;: html_url
-        })
+            time.sleep(1)
 
-        return self._workflow_from_dict(plan_response)
-
-
-    def just_extract(self, url: str, instruction: Optional[str] = None,
-                item_template: Optional[Dict[str, str]] = None,
-                mode=None, max_pages=1, limit=None) -&gt; List[Dict]:
-        &#34;&#34;&#34;Extract items from a given URL, given either a prompt or a template.
-
-        An instructional prompt is just natural language instruction describing
-        the desired results.
-
-        The options &#34;mode&#34;, &#34;max_pages&#34;, and &#34;limit&#34; may NOT be given with
-        &#34;instruction&#34;. These options may only be provided with an item template.
-
-        Use an item_template when you want to specify output fieldnames.
+    def extract(self, url_or_urls, *args, **kwargs):
+        &#34;&#34;&#34;Extract items from a given URL, given an item template.
 
         An item template is a dictionary where the keys are the desired
         output fieldnames and the values are the instructions for extraction of
@@ -449,108 +447,35 @@ Overrides the environment variable.</dd>
         To follow pagination, provide max_pages &gt; 1.
 
         Args:
-            instruction: an instructional prompt as described above
             item_template: the item template described above
             mode: &#39;single&#39;|&#39;multiple&#39;|&#39;auto&#39; - defaults to &#39;auto&#39;.  Set this to &#39;single&#39; if each URL has only a single item.  Set this to &#39;multiple&#39; if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         &#34;&#34;&#34;
+        return self._workflow(url_or_urls).extract(*args, **kwargs)
 
-        if item_template and instruction:
-            raise ValueError(
-                &#34;Please provide either an item_template or a prompt, but not both.&#34;)
-        if item_template is None and instruction is None:
-            raise ValueError(&#34;Please provide an item_template or prompt.&#34;)
+    def init(self, url_or_urls, *args, **kwargs):
+        &#34;&#34;&#34;Initialize the workflow with one or more URLs.
 
-        if item_template:
-            implied_workflow = self.workflow(url).extract(
-                item_template,
-                mode=mode,
-                max_pages=max_pages,
-                limit=limit
-            )
-        else:
-            # if these options are set to anything other than their defaults,
-            # warn, because they are not being respected.
-            # We could also throw an error here.
+        Args:
+            url: Can be a single URL as a string, or a list of URLs.
+        &#34;&#34;&#34;
+        return self._workflow(url_or_urls)
 
-            if mode:
-                nqprint(&#34;Warning: &#39;single&#39; will be ignored in instruction mode.&#34;)
-            if max_pages != 1:
-                nqprint(&#34;Warning: &#39;max_pages&#39; will be ignored in instruction mode.&#34;)
-            if limit is not None:
-                nqprint(&#34;Warning: &#39;limit&#39; will be ignored in instruction mode.&#34;)
+    def filter(*args, **kwargs):
+        raise RuntimeError(&#34;Filter cannot be the first step.&#34;)
 
-            implied_workflow = \
-                self._plan_extraction_from_url_and_prompt(
-                    url,
-                    instruction)
 
-        return implied_workflow.results</code></pre>
+    def unique(*args, **kwargs):
+        raise RuntimeError(&#34;Unique cannot be the first step.&#34;)</code></pre>
 </details>
 <h3>Methods</h3>
 <dl>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.await_job_completion"><code class="name flex">
-<span>def <span class="ident">await_job_completion</span></span>(<span>self, job_id: str, poll_interval: float = 5.0, full_response: bool = False, keep_urls: bool = False)</span>
+<dt id="fetchfox_sdk.client.FetchFox.extract"><code class="name flex">
+<span>def <span class="ident">extract</span></span>(<span>self, url_or_urls, *args, **kwargs)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Wait for a job to complete and return the resulting items or full
-response.</p>
-<p>Use "get_job_status()" if you want to manage polling yourself.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>job_id</code></strong></dt>
-<dd>the id of the job, as returned by run_workflow()</dd>
-<dt><strong><code>poll_interval</code></strong></dt>
-<dd>in seconds</dd>
-<dt><strong><code>full_response</code></strong></dt>
-<dd>defaults to False, so we return the result_items only.
-Pass full_response=True if you want to access the entire body of the final response.</dd>
-<dt><strong><code>keep_urls</code></strong></dt>
-<dd>defaults to False so result items match the given item template.
-Set to true to include the "_url" property.
-Not necessary if _url is the ONLY key.</dd>
-</dl></div>
-</dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.get_job_status"><code class="name flex">
-<span>def <span class="ident">get_job_status</span></span>(<span>self, job_id: str) ‑> dict</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Get the status and results of a job.
-Returns partial results before
-eventually returning the full results.</p>
-<p>When job_status['done'] == True, the full results are present in
-response['results']['items'].</p>
-<p>If you want to manage your own polling, you can use this instead of
-await_job_completion()</p>
-<p>NOTE: Jobs are not created immediately after you call run_workflow().
-The status will not be available until the job is scheduled, so this
-will 404 initially.</p></div>
-</dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.get_workflow"><code class="name flex">
-<span>def <span class="ident">get_workflow</span></span>(<span>self, id) ‑> dict</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Get a registered workflow by ID.</p></div>
-</dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.get_workflows"><code class="name flex">
-<span>def <span class="ident">get_workflows</span></span>(<span>self) ‑> list</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Get workflows</p>
-<h2 id="returns">Returns</h2>
-<p>List of workflows</p></div>
-</dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.just_extract"><code class="name flex">
-<span>def <span class="ident">just_extract</span></span>(<span>self, url: str, instruction: Optional[str] = None, item_template: Optional[Dict[str, str]] = None, mode=None, max_pages=1, limit=None) ‑> List[Dict[~KT, ~VT]]</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Extract items from a given URL, given either a prompt or a template.</p>
-<p>An instructional prompt is just natural language instruction describing
-the desired results.</p>
-<p>The options "mode", "max_pages", and "limit" may NOT be given with
-"instruction". These options may only be provided with an item template.</p>
-<p>Use an item_template when you want to specify output fieldnames.</p>
+<div class="desc"><p>Extract items from a given URL, given an item template.</p>
 <p>An item template is a dictionary where the keys are the desired
 output fieldnames and the values are the instructions for extraction of
 that field.</p>
@@ -566,8 +491,6 @@ that field.</p>
 <p>To follow pagination, provide max_pages &gt; 1.</p>
 <h2 id="args">Args</h2>
 <dl>
-<dt><strong><code>instruction</code></strong></dt>
-<dd>an instructional prompt as described above</dd>
 <dt><strong><code>item_template</code></strong></dt>
 <dd>the item template described above</dd>
 <dt><strong><code>mode</code></strong></dt>
@@ -581,86 +504,37 @@ Defaults to one page only.</dd>
 <dd>limit the number of items yielded by this step</dd>
 </dl></div>
 </dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.register_workflow"><code class="name flex">
-<span>def <span class="ident">register_workflow</span></span>(<span>self, workflow: <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a>) ‑> str</span>
+<dt id="fetchfox_sdk.client.FetchFox.filter"><code class="name flex">
+<span>def <span class="ident">filter</span></span>(<span>*args, **kwargs)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Create a new workflow.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>workflow</code></strong></dt>
-<dd>Workflow object</dd>
-</dl>
-<h2 id="returns">Returns</h2>
-<p>Workflow ID</p></div>
+<div class="desc"></div>
 </dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.workflow"><code class="name flex">
-<span>def <span class="ident">workflow</span></span>(<span>self, url: str = None, params: dict = None) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
+<dt id="fetchfox_sdk.client.FetchFox.init"><code class="name flex">
+<span>def <span class="ident">init</span></span>(<span>self, url_or_urls, *args, **kwargs)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Create a new workflow using this SDK instance.</p>
-<p>Examples of how to use a workflow:</p>
-<pre><code>city_pages = fox             .workflow(&quot;https://locations.traderjoes.com/pa/&quot;)             .extract(
-        item_template = {
-            &quot;url&quot;: &quot;Find me all the URLs for the city directories&quot;
-        }
-    )
-</code></pre>
-<p>A workflow is kind of like a Django QuerySet.
-It will not be executed
-until you attempt to use the results.</p>
-<pre><code>list_of_city_pages = list(city_pages)
-# This would run the workflow and give you a list of items like:
-    {'url': 'https://....'}
-</code></pre>
-<p>You could export those results to a file:</p>
-<pre><code>city_pages.export(&quot;city_urls.jsonl&quot;)
-city_pages.export(&quot;city_urls.csv&quot;)
-</code></pre>
-<p>And then you could create a new workflow (or two) that use those results:</p>
-<pre><code>store_info = city_pages.extract(
-    item_template = {
-        &quot;store_address&quot;: &quot;find me the address of the store&quot;,
-        &quot;store_number&quot;: &quot;Find me the number of the store (it's in parentheses)&quot;,
-        &quot;store_phone&quot;: &quot;Find me the phone number of the store&quot;
-        }
-)
-
-store_urls = city_pages.extract(
-    item_template = {
-        &quot;url&quot;: &quot;Find me the URLs of Store detail pages.&quot;
-    }
-)
-</code></pre>
-<p>In the above snippets, the <code>city_pages</code> workflow was only ever executed
-once.</p>
-<p>Optionally, a URL and/or params may be passed here to initialize
-the workflow with them.</p>
-<p>Workflow parameters are given in a dictionary.
-E.g. if your workflow
-has a <code>{{state_name}}</code> parameter, you might pass:</p>
-<pre><code>{ 'state_name': 'Alaska' }
-</code></pre>
-<p>or perhaps</p>
-<pre><code>{ 'state_name': ['Alaska', 'Hawaii'] }
-</code></pre>
-<p>if you wish to run the workflow for both states and collect the results.</p>
+<div class="desc"><p>Initialize the workflow with one or more URLs.</p>
 <h2 id="args">Args</h2>
 <dl>
 <dt><strong><code>url</code></strong></dt>
-<dd>URL to start from</dd>
-<dt><strong><code>params</code></strong></dt>
-<dd>Workflow parameters.</dd>
+<dd>Can be a single URL as a string, or a list of URLs.</dd>
 </dl></div>
 </dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.workflow_by_id"><code class="name flex">
+<dt id="fetchfox_sdk.client.FetchFox.unique"><code class="name flex">
+<span>def <span class="ident">unique</span></span>(<span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="fetchfox_sdk.client.FetchFox.workflow_by_id"><code class="name flex">
 <span>def <span class="ident">workflow_by_id</span></span>(<span>self, workflow_id) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
 </code></dt>
 <dd>
 <div class="desc"><p>Use a public workflow ID</p>
 <p>Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")</p></div>
 </dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.workflow_from_json"><code class="name flex">
+<dt id="fetchfox_sdk.client.FetchFox.workflow_from_json"><code class="name flex">
 <span>def <span class="ident">workflow_from_json</span></span>(<span>self, json_workflow) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
 </code></dt>
 <dd>
@@ -692,17 +566,14 @@ You should not usually try to write these manually, but simply copy-paste from t
 <li><h3><a href="#header-classes">Classes</a></h3>
 <ul>
 <li>
-<h4><code><a title="fetchfox_sdk.client.FetchFoxSDK" href="#fetchfox_sdk.client.FetchFoxSDK">FetchFoxSDK</a></code></h4>
-<ul class="">
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.await_job_completion" href="#fetchfox_sdk.client.FetchFoxSDK.await_job_completion">await_job_completion</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.get_job_status" href="#fetchfox_sdk.client.FetchFoxSDK.get_job_status">get_job_status</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.get_workflow" href="#fetchfox_sdk.client.FetchFoxSDK.get_workflow">get_workflow</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.get_workflows" href="#fetchfox_sdk.client.FetchFoxSDK.get_workflows">get_workflows</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.just_extract" href="#fetchfox_sdk.client.FetchFoxSDK.just_extract">just_extract</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.register_workflow" href="#fetchfox_sdk.client.FetchFoxSDK.register_workflow">register_workflow</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.workflow" href="#fetchfox_sdk.client.FetchFoxSDK.workflow">workflow</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.workflow_by_id" href="#fetchfox_sdk.client.FetchFoxSDK.workflow_by_id">workflow_by_id</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.workflow_from_json" href="#fetchfox_sdk.client.FetchFoxSDK.workflow_from_json">workflow_from_json</a></code></li>
+<h4><code><a title="fetchfox_sdk.client.FetchFox" href="#fetchfox_sdk.client.FetchFox">FetchFox</a></code></h4>
+<ul class="two-column">
+<li><code><a title="fetchfox_sdk.client.FetchFox.extract" href="#fetchfox_sdk.client.FetchFox.extract">extract</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFox.filter" href="#fetchfox_sdk.client.FetchFox.filter">filter</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFox.init" href="#fetchfox_sdk.client.FetchFox.init">init</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFox.unique" href="#fetchfox_sdk.client.FetchFox.unique">unique</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFox.workflow_by_id" href="#fetchfox_sdk.client.FetchFox.workflow_by_id">workflow_by_id</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFox.workflow_from_json" href="#fetchfox_sdk.client.FetchFox.workflow_from_json">workflow_from_json</a></code></li>
 </ul>
 </li>
 </ul>
