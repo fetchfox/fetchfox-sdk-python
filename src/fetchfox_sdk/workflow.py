@@ -4,12 +4,16 @@ import json
 import csv
 from typing import Optional, Dict, Any, List, Generator, Union
 import logging
+import concurrent.futures
 
 from .result_item import ResultItem
 
 logger = logging.getLogger('fetchfox')
 
 class Workflow:
+
+    _executor = concurrent.futures.ThreadPoolExecutor()
+
     def __init__(self, sdk_context):
 
         self._sdk = sdk_context
@@ -21,16 +25,20 @@ class Workflow:
 
         self._results = None
         self._ran_job_id = None
+        self._future = None
 
     @property
-    def results(self):
-        """Get the results, executing the query if necessary.
+    def all_results(self):
+        """Get all results, executing the query if necessary, blocks until done.
         Returns results as ResultItem objects for easier attribute access.
         """
         if not self.has_results:
-            self.run()
+            self._run__block_until_done() # writes to self._results
 
         return [ResultItem(item) for item in self._results]
+
+    def results(self):
+        yield from self._results_gen()
 
     @property
     def has_results(self):
@@ -54,8 +62,7 @@ class Workflow:
         Accessing the results property will execute the workflow if necessary.
         """
         # Use the results property which already returns ResultItems
-        for item in self.results:
-            yield item
+        yield from self.results()
 
     def __getitem__(self, key):
         """Allow indexing into the workflow results.
@@ -67,25 +74,25 @@ class Workflow:
             key: Can be an integer index or a slice
         """
         # Results property already returns ResultItems
-        return self.results[key]
+        return self.all_results[key]
 
     def __bool__(self):
         """Return True if the workflow has any results, False otherwise.
         Accessing the results property will execute the workflow if necessary.
         """
-        return bool(self.results)
+        return bool(self.all_results)
 
     def __len__(self):
         """Return the number of results.
         Accessing the results property will execute the workflow if necessary.
         """
-        return len(self.results)
+        return len(self.all_results)
 
     def __contains__(self, item):
         """Check if an item exists in the results.
         Accessing the results property will execute the workflow if necessary.
         """
-        return item in self.results
+        return item in self.all_results
 
     def _clone(self):
         """Create a new instance with copied workflow OR copied results"""
@@ -123,21 +130,66 @@ class Workflow:
     #TODO: refresh?
     #Force a re-run, even though results are present?
 
-    def run(self) -> List[Dict]:
+    def _run__block_until_done(self) -> List[Dict]:
         """Execute the workflow and return results.
 
         Note that running the workflow will attach the results to it.  After it
         has results, derived workflows will be given the _results_ from this workflow,
         NOT the steps of this workflow.
         """
-        logger.debug("Running workflow.")
-        job_id = self._sdk._run_workflow(workflow=self)
-        results = self._sdk._await_job_completion(job_id)
-        if results is None or len(results) == 0:
-            print("This workflow did not return any results.")
-        self._ran_job_id = job_id
-        self._results = results
-        return self._results
+        logger.debug("Running workflow to completion")
+        return list(self._results_gen())
+
+    def _results_gen(self):
+        """Generator yields results as they are available from the job.
+        Attaches results to workflow as it proceeds, so they are later available
+        without running again.
+        """
+
+        logger.debug("Streaming Results")
+        if not self.has_results:
+            self._results = []
+            job_id = self._sdk._run_workflow(workflow=self)
+            self._ran_job_id = job_id #track that we have ran
+            for item in self._sdk._job_result_items_gen(job_id):
+                self._results.append(item)
+                yield ResultItem(item)
+        else:
+            yield from self.all_results #yields ResultItems
+
+    def _future_done_cb(self, future):
+        """Done-callback: triggered when the future completes
+        (success, fail, or cancelled).
+        We store final results if everything’s okay;
+        otherwise, we can handle exceptions.
+        """
+        if not future.cancelled():
+            self._results = future.result()
+        else:
+            self._future = None
+
+    def results_future(self):
+        """Returns a plain concurrent.futures.Future object that yields ALL results
+        when the job is complete.  Access the_future.result() to block, or use
+        the_future.done() to check for completion without any blocking.
+
+        If we already have results, they will be immediately available in the
+        `future.result()`
+        """
+
+        if self._results is not None:
+            # Already have final results: return a completed future
+            completed_future = concurrent.futures.Future()
+            completed_future.set_result(self._results)
+            self._future = completed_future
+
+        if self._future is not None:
+            # Already started, so reuse existing future
+            return self._future
+
+        self._future = self._executor.submit(self._run__block_until_done)
+        self._future.add_done_callback(self._future_done_cb)
+        return self._future
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
@@ -167,58 +219,53 @@ class Workflow:
     def configure_params(self, params) -> "Workflow":
         raise NotImplementedError()
 
-    def export(self, filename: str, force_overwrite: bool = False) -> None:
+    def export(self, filename: str, overwrite: bool = False) -> None:
         """Execute workflow and save results to file.
 
         Args:
             filename: Path to output file, must end with .csv or .jsonl
-            force_overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
+            overwrite: Defaults to False, which causes an error to be raised if the file exists already.  Set it to true if you want to overwrite.
 
         Raises:
             ValueError: If filename doesn't end with .csv or .jsonl
-            FileExistsError: If file exists and force_overwrite is False
+            FileExistsError: If file exists and overwrite is False
         """
 
         if not (filename.endswith('.csv') or filename.endswith('.jsonl')):
             raise ValueError("Output filename must end with .csv or .jsonl")
 
-        if os.path.exists(filename) and not force_overwrite:
+        if os.path.exists(filename) and not overwrite:
             raise FileExistsError(
-                f"File {filename} already exists. Use force_overwrite=True to overwrite.")
+                f"File {filename} already exists. Use overwrite=True to overwrite.")
 
-        # Manually controlled here for clarity -
-        # we could just use ".results" but then we don't want the ResultItems
-        # here anyway, and using ._results won't trigger execution.
-        if not self.has_run:
-            self.run()
+        if self.has_run:
+            if not self.has_results:
+                raise RuntimeError("A job ran, but there are no results.")
 
-        # Now, we should certainly have a job ID, or something has gone
-        # unexpectedly poorly.
-        if not self._ran_job_id:
-            raise RuntimeError(
-                "There may have been an uncaught problem running the job.")
+            # If it has run, and results is not None, results could still be []
+            # anyway, accessing it here won't trigger another run
+            if len(self.all_results) < 1:
+                if os.path.exists(filename) and overwrite:
+                    raise RuntimeError("No results.  Refusing to overwrite.")
+                else:
+                    self._sdk._nqprint("No results to export.")
 
-        # Not every workflow is going to yield results
-        if not self._results or len(self._results) < 1:
-            # TODO: maybe it's OK to fail silently here, but I don't want to
-            # overwrite possible earlier results in the case of a failure.
-            raise RuntimeError(
-                "There are not results to export.  Bailing here rather than "
-                "writing an empty file.")
+        # Now we access the magic property, so execution will occur if needed
+        raw_results = [ dict(result_item) for result_item in self.all_results ]
 
         if filename.endswith('.csv'):
             fieldnames = set()
-            for item in self._results:
+            for item in raw_results:
                 fieldnames.update(item.keys())
 
             with open(filename, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=sorted(fieldnames))
                 writer.writeheader()
-                writer.writerows(self._results)
+                writer.writerows(raw_results)
 
         else:
             with open(filename, 'w') as f:
-                for item in self._results:
+                for item in raw_results:
                     f.write(json.dumps(item) + '\n')
 
 
@@ -259,6 +306,9 @@ class Workflow:
                     f"Reserved names are: {', '.join(RESERVED_PROPERTIES)}"
                 )
 
+        if mode is not None and mode not in ["single", "multiple", "auto"]:
+            raise ValueError("Mode may only be 'single'|'multiple'|'auto'")
+
         new_instance = self._clone()
 
         new_step = {
@@ -266,7 +316,7 @@ class Workflow:
             "args": {
                 "questions": item_template,
                 "maxPages": max_pages,
-                "limit": limit
+                "limit": limit,
             }
         }
 
@@ -274,14 +324,7 @@ class Workflow:
             new_step['args']['view'] = view
 
         if mode is not None:
-            if mode == 'single':
-                new_step['args']['single'] = True
-            elif mode == 'multiple':
-                new_step['args']['single'] = False
-            else:
-                raise ValueError(
-                    "Allowable modes are 'single', 'multiple' or 'auto'")
-
+            new_step['args']['mode'] = mode
 
         new_instance._workflow["steps"].append(new_step)
 
