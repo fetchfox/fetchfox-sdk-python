@@ -5,7 +5,6 @@ import csv
 from typing import Optional, Dict, Any, List, Generator, Union
 import logging
 import concurrent.futures
-import threading
 
 from .result_item import ResultItem
 
@@ -27,9 +26,6 @@ class Workflow:
         self._results = None
         self._ran_job_id = None
         self._future = None
-        self._callback_thread = None
-        self._stop_callback = threading.Event()
-        self._lock = threading.Lock()
 
     @property
     def all_results(self):
@@ -181,86 +177,19 @@ class Workflow:
         `future.result()`
         """
 
-        with self._lock:
-            if self._callback_thread is not None:
-                raise RuntimeError(
-                    "Cannot call results_future() if you have a running"
-                    "callback thread already.")
+        if self._results is not None:
+            # Already have final results: return a completed future
+            completed_future = concurrent.futures.Future()
+            completed_future.set_result(self._results)
+            self._future = completed_future
 
-            if self._results is not None:
-                # Already have final results: return a completed future
-                completed_future = concurrent.futures.Future()
-                completed_future.set_result(self._results)
-                self._future = completed_future
-
-            if self._future is not None:
-                # Already started, so reuse existing future
-                return self._future
-
-            self._future = self._executor.submit(self._run__block_until_done)
-            self._future.add_done_callback(self._future_done_cb)
+        if self._future is not None:
+            # Already started, so reuse existing future
             return self._future
 
-    def callback_thread_is_running(self):
-        with self._lock:
-            return self._callback_thread is not None
-
-    def run_with_callback_for_result_items(self, on_item, on_exc=None):
-        """Run this workflow in the background.  Provide a callback function
-        and this function will be called each time a new result item arrives.
-
-        Args:
-            on_item: Function that accepts a single result item as input.  Will be run
-                upon each new result item as they arrive.
-        """
-        with self._lock:
-            # Don’t allow callback mode if we have a running or completed future
-            if self._future is not None:
-                raise RuntimeError(
-                    "Cannot use item callback mode while a future"
-                    " is in flight.")
-            if self._callback_thread is not None:
-                raise RuntimeError(
-                    "Refusing to start a duplicate callback thread.")
-
-            # Reset event in case it’s set from a previous usage
-            self._stop_callback.clear()
-            self._callback_thread = threading.Thread(
-                target=self._callback_runner,
-                args=(on_item,on_exc),
-                daemon=False
-            )
-            self._callback_thread.start()
-
-    def _callback_runner(self, on_item, on_exc):
-        """Just runs _results_gen in the background and calls the callback
-        for each new item"""
-        collected = []
-        try:
-            for result_item in self._results_gen():
-                if self._stop_callback.is_set():
-                    break
-                collected.append(dict(result_item))
-                on_item(result_item)
-            with self._lock:
-                self._results = collected
-        except Exception as e:
-            on_exc(e)
-        finally:
-            with self._lock:
-                self._callback_thread = None
-
-    def wait_until_done(self):
-        """
-        Blocks until the item callback thread has completed (if it is running).
-        Ensures the main thread can wait so it doesn't exit prematurely.
-        """
-        # get the callback thread safely
-        with self._lock:
-            thread = self._callback_thread
-
-        if thread is not None:
-            thread.join()
+        self._future = self._executor.submit(self._run__block_until_done)
+        self._future.add_done_callback(self._future_done_cb)
+        return self._future
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
