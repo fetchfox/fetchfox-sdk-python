@@ -1,7 +1,6 @@
 import fetchfox_sdk
 from pprint import pprint
 import concurrent.futures
-import logging
 
 fox = fetchfox_sdk.FetchFox(quiet=True)
 

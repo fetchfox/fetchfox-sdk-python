@@ -201,6 +201,10 @@ class Workflow:
             self._future.add_done_callback(self._future_done_cb)
             return self._future
 
+    def callback_thread_is_running(self):
+        with self._lock:
+            return self._callback_thread is not None
+
     def run_with_callback_for_result_items(self, on_item, on_exc=None):
         """Run this workflow in the background.  Provide a callback function
         and this function will be called each time a new result item arrives.
