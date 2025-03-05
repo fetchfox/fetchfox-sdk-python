@@ -37,7 +37,7 @@ hljs.highlightAll();
 <dl>
 <dt id="fetchfox_sdk.client.FetchFoxSDK"><code class="flex name class">
 <span>class <span class="ident">FetchFoxSDK</span></span>
-<span>(</span><span>api_key: Optional[str] = None, host: str = 'https://fetchfox.ai')</span>
+<span>(</span><span>api_key: Optional[str] = None, host: str = 'https://fetchfox.ai', quiet=False)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Initialize the FetchFox SDK.</p>
@@ -49,13 +49,17 @@ hljs.highlightAll();
 Overrides the environment variable.</dd>
 <dt><strong><code>host</code></strong></dt>
 <dd>API host URL (defaults to production)</dd>
+<dt><strong><code>quiet</code></strong></dt>
+<dd>set to True to suppress printing</dd>
 </dl></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">class FetchFoxSDK:
-    def __init__(self, api_key: Optional[str] = None, host: str = &#34;https://fetchfox.ai&#34;):
+    def __init__(self,
+            api_key: Optional[str] = None, host: str = &#34;https://fetchfox.ai&#34;,
+            quiet=False):
         &#34;&#34;&#34;Initialize the FetchFox SDK.
 
         You may also provide an API key in the environment variable `FETCHFOX_API_KEY`.
@@ -63,6 +67,7 @@ Overrides the environment variable.</dd>
         Args:
             api_key: Your FetchFox API key.  Overrides the environment variable.
             host: API host URL (defaults to production)
+            quiet: set to True to suppress printing
         &#34;&#34;&#34;
         self.base_url = urljoin(host, _API_PREFIX)
 
@@ -79,6 +84,8 @@ Overrides the environment variable.</dd>
             &#39;Content-Type&#39;: &#39;application/json&#39;,
             &#39;Authorization&#39;: f&#39;Bearer: {self.api_key}&#39;
         }
+
+        self.quiet = False
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
                     params: Optional[dict] = None) -&gt; dict:
@@ -97,7 +104,8 @@ Overrides the environment variable.</dd>
             url,
             headers=self.headers,
             json=json_data,
-            params=params
+            params=params,
+            timeout=(30,30)
         )
 
         response.raise_for_status()
@@ -105,6 +113,113 @@ Overrides the environment variable.</dd>
 
         logger.debug(f&#34;Response from %s %s:\n%s&#34;, method, path, pformat(body))
         return body
+
+    def _nqprint(self, *args, **kwargs):
+        if not self.quiet:
+            print(*args, **kwargs)
+
+    def workflow(self, url: str = None, params:dict = None) -&gt; &#34;Workflow&#34;:
+        &#34;&#34;&#34;Create a new workflow using this SDK instance.
+
+        Examples of how to use a workflow:
+
+        ```
+        city_pages = fox \
+            .workflow(&#34;https://locations.traderjoes.com/pa/&#34;) \
+            .extract(
+                item_template = {
+                    &#34;url&#34;: &#34;Find me all the URLs for the city directories&#34;
+                }
+            )
+        ```
+
+        A workflow is kind of like a Django QuerySet.  It will not be executed
+        until you attempt to use the results.
+
+        ```
+        list_of_city_pages = list(city_pages)
+        # This would run the workflow and give you a list of items like:
+            {&#39;url&#39;: &#39;https://....&#39;}
+        ```
+
+        You could export those results to a file:
+        ```
+        city_pages.export(&#34;city_urls.jsonl&#34;)
+        city_pages.export(&#34;city_urls.csv&#34;)
+        ```
+
+        And then you could create a new workflow (or two) that use those results:
+
+        ```
+        store_info = city_pages.extract(
+            item_template = {
+                &#34;store_address&#34;: &#34;find me the address of the store&#34;,
+                &#34;store_number&#34;: &#34;Find me the number of the store (it&#39;s in parentheses)&#34;,
+                &#34;store_phone&#34;: &#34;Find me the phone number of the store&#34;
+                }
+        )
+
+        store_urls = city_pages.extract(
+            item_template = {
+                &#34;url&#34;: &#34;Find me the URLs of Store detail pages.&#34;
+            }
+        )
+        ```
+
+        In the above snippets, the `city_pages` workflow was only ever executed
+        once.
+
+        Optionally, a URL and/or params may be passed here to initialize
+        the workflow with them.
+
+        Workflow parameters are given in a dictionary.  E.g. if your workflow
+        has a `{{state_name}}` parameter, you might pass:
+
+            { &#39;state_name&#39;: &#39;Alaska&#39; }
+
+        or perhaps
+
+            { &#39;state_name&#39;: [&#39;Alaska&#39;, &#39;Hawaii&#39;] }
+
+        if you wish to run the workflow for both states and collect the results.
+
+        Args:
+            url: URL to start from
+            params: Workflow parameters.
+        &#34;&#34;&#34;
+        w = Workflow(self)
+        if url:
+            w = w.init(url)
+        if params:
+            w = w.configure_params(params)
+
+        return w
+
+    def workflow_from_json(self, json_workflow) -&gt; &#34;Workflow&#34;:
+        &#34;&#34;&#34;Given a JSON string, such as you can generate in the wizard at
+        https://fetchfox.ai, create a workflow from it.
+
+        Once created, it can be used like a regular workflow.
+
+        Args:
+            json_workflow: This must be a valid JSON string that represents a Fetchfox Workflow.  You should not usually try to write these manually, but simply copy-paste from the web interface.
+        &#34;&#34;&#34;
+        return self.workflow_from_dict(json.loads(json_workflow))
+
+    def _workflow_from_dict(self, workflow_dict):
+        w = Workflow(self)
+        w._workflow = workflow_dict
+        return w
+
+
+    def workflow_by_id(self, workflow_id) -&gt; &#34;Workflow&#34;:
+        &#34;&#34;&#34;Use a public workflow ID
+
+        Something like fox.workflow_by_id(ID).configure_params({state:&#34;AK&#34;}).export(&#34;blah.csv&#34;)
+
+        &#34;&#34;&#34;
+        workflow_json = self.get_workflow(workflow_id)
+        return self.workflow_from_json(workflow_json)
 
     def register_workflow(self, workflow: Workflow) -&gt; str:
         &#34;&#34;&#34;Create a new workflow.
@@ -133,7 +248,12 @@ Overrides the environment variable.</dd>
         # NOTE: Should we return Workflow objects intead?
         return response[&#39;results&#39;]
 
-    def run_workflow(self, workflow_id: Optional[str] = None,
+    def get_workflow(self, id) -&gt; dict:
+        &#34;&#34;&#34;Get a registered workflow by ID.&#34;&#34;&#34;
+        response = self._request(&#34;GET&#34;, f&#34;workflow/{id}&#34;)
+        return response
+
+    def _run_workflow(self, workflow_id: Optional[str] = None,
                     workflow: Optional[Workflow] = None,
                     params: Optional[dict] = None) -&gt; str:
         &#34;&#34;&#34;Run a workflow. Either provide the ID of a registered workflow,
@@ -163,7 +283,7 @@ Overrides the environment variable.</dd>
             raise ValueError(
                 &#34;Provide only a workflow or a workflow_id, not both.&#34;)
 
-        if workflow and not isinstance(workflow, Workflow):
+        if workflow is not None and not isinstance(workflow, Workflow):
             raise ValueError(
                 &#34;The workflow argument must be a fetchfox_sdk.Workflow&#34;)
         if workflow_id and not isinstance(workflow_id, str):
@@ -224,12 +344,13 @@ Overrides the environment variable.</dd>
 
         MAX_WAIT_FOR_JOB_ALIVE_MINUTES = 5 #TODO: reasonable?
         started_waiting_for_job_dt = None
+        self._nqprint(f&#34;Waiting for job [{job_id}] to finish: &#34;)
 
         while True:
 
             try:
                 status = self.get_job_status(job_id)
-
+                self._nqprint(&#34;.&#34;, end=&#34;&#34;)
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
 
@@ -249,6 +370,8 @@ Overrides the environment variable.</dd>
                     raise
 
             if status.get(&#39;done&#39;):
+                self._nqprint(&#34;\n&#34;)
+
                 if full_response:
                     return status
 
@@ -257,7 +380,7 @@ Overrides the environment variable.</dd>
                 try:
                     full_items = status[&#39;results&#39;][&#39;items&#39;]
                 except KeyError:
-                    print(&#34;No results.&#34;)
+                    nqprint(&#34;No results.&#34;)
                     return None
 
                 stripped_items = []
@@ -292,29 +415,35 @@ Overrides the environment variable.</dd>
             &#34;html&#34;: html_url
         })
 
-        return Workflow.from_dict(plan_response)
+        return self._workflow_from_dict(plan_response)
 
 
-    def extract(self, url: str, instruction: Optional[str] = None,
+    def just_extract(self, url: str, instruction: Optional[str] = None,
                 item_template: Optional[Dict[str, str]] = None,
-                single=False, max_pages=1, limit=None) -&gt; List[Dict]:
+                mode=None, max_pages=1, limit=None) -&gt; List[Dict]:
         &#34;&#34;&#34;Extract items from a given URL, given either a prompt or a template.
 
         An instructional prompt is just natural language instruction describing
         the desired results.
 
-        The options &#34;single&#34;, &#34;max_pages&#34;, and &#34;limit&#34; may NOT be given with
+        The options &#34;mode&#34;, &#34;max_pages&#34;, and &#34;limit&#34; may NOT be given with
         &#34;instruction&#34;. These options may only be provided with an item template.
+
+        Use an item_template when you want to specify output fieldnames.
 
         An item template is a dictionary where the keys are the desired
         output fieldnames and the values are the instructions for extraction of
         that field.
 
-        Example item template:
+        Example item templates:
         {
             &#34;magnitude&#34;: &#34;What is the magnitude of this earthquake?&#34;,
             &#34;location&#34;: &#34;What is the location of this earthquake?&#34;,
             &#34;time&#34;: &#34;What is the time of this earthquake?&#34;
+        }
+
+        {
+            &#34;url&#34;: &#34;Find me all the links to the product detail pages.&#34;
         }
 
         To follow pagination, provide max_pages &gt; 1.
@@ -322,7 +451,7 @@ Overrides the environment variable.</dd>
         Args:
             instruction: an instructional prompt as described above
             item_template: the item template described above
-            single: Defaults to False. Set this to True if each URL has only a single item to extract.
+            mode: &#39;single&#39;|&#39;multiple&#39;|&#39;auto&#39; - defaults to &#39;auto&#39;.  Set this to &#39;single&#39; if each URL has only a single item.  Set this to &#39;multiple&#39; if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         &#34;&#34;&#34;
@@ -333,12 +462,10 @@ Overrides the environment variable.</dd>
         if item_template is None and instruction is None:
             raise ValueError(&#34;Please provide an item_template or prompt.&#34;)
 
-        implied_workflow = Workflow().init(url)
-
         if item_template:
-            implied_workflow.extract(
+            implied_workflow = self.workflow(url).extract(
                 item_template,
-                single=single,
+                mode=mode,
                 max_pages=max_pages,
                 limit=limit
             )
@@ -347,52 +474,19 @@ Overrides the environment variable.</dd>
             # warn, because they are not being respected.
             # We could also throw an error here.
 
-            if single:
-                print(&#34;Warning: &#39;single&#39; will be ignored in instruction mode.&#34;)
+            if mode:
+                nqprint(&#34;Warning: &#39;single&#39; will be ignored in instruction mode.&#34;)
             if max_pages != 1:
-                print(&#34;Warning: &#39;max_pages&#39; will be ignored in instruction mode.&#34;)
+                nqprint(&#34;Warning: &#39;max_pages&#39; will be ignored in instruction mode.&#34;)
             if limit is not None:
-                print(&#34;Warning: &#39;limit&#39; will be ignored in instruction mode.&#34;)
+                nqprint(&#34;Warning: &#39;limit&#39; will be ignored in instruction mode.&#34;)
 
             implied_workflow = \
                 self._plan_extraction_from_url_and_prompt(
                     url,
                     instruction)
 
-        job_id = self.run_workflow(workflow=implied_workflow)
-        # The workflow will be registered and run, but in this convenience
-        # function, the user doesn&#39;t care about that.
-
-        result_items = self.await_job_completion(job_id)
-        return result_items
-
-    def find_urls(self, url: str, instruction: str, max_pages: int = 1,
-            limit=None) -&gt; List[str]:
-        &#34;&#34;&#34;Find URLs on a webpage using AI, given an instructional prompt.
-
-         An instructional prompt is just natural language instruction describing
-        the desired results.
-
-        Example Instructional Prompts:
-            &#34;Find me all the links to bicycles that are not electric &#39;e-bikes&#39;&#34;
-            &#34;Find me the links to each product detail page.&#34;
-            &#34;Find me the links for each US State&#34;
-            &#34;Find me the links to the profiles for employees among the C-Suite&#34;
-
-        Args:
-            instruction: an instructional prompt as described above
-            max_pages: provide an integer &gt; 1 if you want to follow pagination
-            limit: limits the number of items yielded by this step
-        &#34;&#34;&#34;
-        implied_workflow = (
-            Workflow()
-            .init(url)
-            .find_urls(instruction, max_pages=max_pages, limit=limit)
-        )
-
-        job_id = self.run_workflow(workflow=implied_workflow)
-        urls_as_items = self.await_job_completion(job_id, keep_urls=True)
-        return [ item[&#39;_url&#39;] for item in urls_as_items ]</code></pre>
+        return implied_workflow.results</code></pre>
 </details>
 <h3>Methods</h3>
 <dl>
@@ -418,62 +512,6 @@ Set to true to include the "_url" property.
 Not necessary if _url is the ONLY key.</dd>
 </dl></div>
 </dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.extract"><code class="name flex">
-<span>def <span class="ident">extract</span></span>(<span>self, url: str, instruction: Optional[str] = None, item_template: Optional[Dict[str, str]] = None, single=False, max_pages=1, limit=None) ‑> List[Dict[~KT, ~VT]]</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Extract items from a given URL, given either a prompt or a template.</p>
-<p>An instructional prompt is just natural language instruction describing
-the desired results.</p>
-<p>The options "single", "max_pages", and "limit" may NOT be given with
-"instruction". These options may only be provided with an item template.</p>
-<p>An item template is a dictionary where the keys are the desired
-output fieldnames and the values are the instructions for extraction of
-that field.</p>
-<p>Example item template:
-{
-"magnitude": "What is the magnitude of this earthquake?",
-"location": "What is the location of this earthquake?",
-"time": "What is the time of this earthquake?"
-}</p>
-<p>To follow pagination, provide max_pages &gt; 1.</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>instruction</code></strong></dt>
-<dd>an instructional prompt as described above</dd>
-<dt><strong><code>item_template</code></strong></dt>
-<dd>the item template described above</dd>
-<dt><strong><code>single</code></strong></dt>
-<dd>Defaults to False. Set this to True if each URL has only a single item to extract.</dd>
-<dt><strong><code>max_pages</code></strong></dt>
-<dd>enable pagination from the given URL.
-Defaults to one page only.</dd>
-<dt><strong><code>limit</code></strong></dt>
-<dd>limit the number of items yielded by this step</dd>
-</dl></div>
-</dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.find_urls"><code class="name flex">
-<span>def <span class="ident">find_urls</span></span>(<span>self, url: str, instruction: str, max_pages: int = 1, limit=None) ‑> List[str]</span>
-</code></dt>
-<dd>
-<div class="desc"><p>Find URLs on a webpage using AI, given an instructional prompt.</p>
-<p>An instructional prompt is just natural language instruction describing
-the desired results.</p>
-<p>Example Instructional Prompts:
-"Find me all the links to bicycles that are not electric 'e-bikes'"
-"Find me the links to each product detail page."
-"Find me the links for each US State"
-"Find me the links to the profiles for employees among the C-Suite"</p>
-<h2 id="args">Args</h2>
-<dl>
-<dt><strong><code>instruction</code></strong></dt>
-<dd>an instructional prompt as described above</dd>
-<dt><strong><code>max_pages</code></strong></dt>
-<dd>provide an integer &gt; 1 if you want to follow pagination</dd>
-<dt><strong><code>limit</code></strong></dt>
-<dd>limits the number of items yielded by this step</dd>
-</dl></div>
-</dd>
 <dt id="fetchfox_sdk.client.FetchFoxSDK.get_job_status"><code class="name flex">
 <span>def <span class="ident">get_job_status</span></span>(<span>self, job_id: str) ‑> dict</span>
 </code></dt>
@@ -489,6 +527,12 @@ await_job_completion()</p>
 The status will not be available until the job is scheduled, so this
 will 404 initially.</p></div>
 </dd>
+<dt id="fetchfox_sdk.client.FetchFoxSDK.get_workflow"><code class="name flex">
+<span>def <span class="ident">get_workflow</span></span>(<span>self, id) ‑> dict</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Get a registered workflow by ID.</p></div>
+</dd>
 <dt id="fetchfox_sdk.client.FetchFoxSDK.get_workflows"><code class="name flex">
 <span>def <span class="ident">get_workflows</span></span>(<span>self) ‑> list</span>
 </code></dt>
@@ -496,6 +540,46 @@ will 404 initially.</p></div>
 <div class="desc"><p>Get workflows</p>
 <h2 id="returns">Returns</h2>
 <p>List of workflows</p></div>
+</dd>
+<dt id="fetchfox_sdk.client.FetchFoxSDK.just_extract"><code class="name flex">
+<span>def <span class="ident">just_extract</span></span>(<span>self, url: str, instruction: Optional[str] = None, item_template: Optional[Dict[str, str]] = None, mode=None, max_pages=1, limit=None) ‑> List[Dict[~KT, ~VT]]</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Extract items from a given URL, given either a prompt or a template.</p>
+<p>An instructional prompt is just natural language instruction describing
+the desired results.</p>
+<p>The options "mode", "max_pages", and "limit" may NOT be given with
+"instruction". These options may only be provided with an item template.</p>
+<p>Use an item_template when you want to specify output fieldnames.</p>
+<p>An item template is a dictionary where the keys are the desired
+output fieldnames and the values are the instructions for extraction of
+that field.</p>
+<p>Example item templates:
+{
+"magnitude": "What is the magnitude of this earthquake?",
+"location": "What is the location of this earthquake?",
+"time": "What is the time of this earthquake?"
+}</p>
+<p>{
+"url": "Find me all the links to the product detail pages."
+}</p>
+<p>To follow pagination, provide max_pages &gt; 1.</p>
+<h2 id="args">Args</h2>
+<dl>
+<dt><strong><code>instruction</code></strong></dt>
+<dd>an instructional prompt as described above</dd>
+<dt><strong><code>item_template</code></strong></dt>
+<dd>the item template described above</dd>
+<dt><strong><code>mode</code></strong></dt>
+<dd>'single'|'multiple'|'auto' - defaults to 'auto'.
+Set this to 'single' if each URL has only a single item.
+Set this to 'multiple' if each URL should yield multiple items</dd>
+<dt><strong><code>max_pages</code></strong></dt>
+<dd>enable pagination from the given URL.
+Defaults to one page only.</dd>
+<dt><strong><code>limit</code></strong></dt>
+<dd>limit the number of items yielded by this step</dd>
+</dl></div>
 </dd>
 <dt id="fetchfox_sdk.client.FetchFoxSDK.register_workflow"><code class="name flex">
 <span>def <span class="ident">register_workflow</span></span>(<span>self, workflow: <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a>) ‑> str</span>
@@ -510,33 +594,84 @@ will 404 initially.</p></div>
 <h2 id="returns">Returns</h2>
 <p>Workflow ID</p></div>
 </dd>
-<dt id="fetchfox_sdk.client.FetchFoxSDK.run_workflow"><code class="name flex">
-<span>def <span class="ident">run_workflow</span></span>(<span>self, workflow_id: Optional[str] = None, workflow: Optional[<a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a>] = None, params: Optional[dict] = None) ‑> str</span>
+<dt id="fetchfox_sdk.client.FetchFoxSDK.workflow"><code class="name flex">
+<span>def <span class="ident">workflow</span></span>(<span>self, url: str = None, params: dict = None) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
 </code></dt>
 <dd>
-<div class="desc"><p>Run a workflow. Either provide the ID of a registered workflow,
-or provide a workflow object (which will be registered
-automatically, for convenience).</p>
-<p>You can browse <a href="https://fetchfox.ai">https://fetchfox.ai</a> to find publicly available workflows
-authored by others.
-Copy the workflow ID and use it here.
-Often,
-in this case, you will also want to provide parameters.</p>
+<div class="desc"><p>Create a new workflow using this SDK instance.</p>
+<p>Examples of how to use a workflow:</p>
+<pre><code>city_pages = fox             .workflow(&quot;https://locations.traderjoes.com/pa/&quot;)             .extract(
+        item_template = {
+            &quot;url&quot;: &quot;Find me all the URLs for the city directories&quot;
+        }
+    )
+</code></pre>
+<p>A workflow is kind of like a Django QuerySet.
+It will not be executed
+until you attempt to use the results.</p>
+<pre><code>list_of_city_pages = list(city_pages)
+# This would run the workflow and give you a list of items like:
+    {'url': 'https://....'}
+</code></pre>
+<p>You could export those results to a file:</p>
+<pre><code>city_pages.export(&quot;city_urls.jsonl&quot;)
+city_pages.export(&quot;city_urls.csv&quot;)
+</code></pre>
+<p>And then you could create a new workflow (or two) that use those results:</p>
+<pre><code>store_info = city_pages.extract(
+    item_template = {
+        &quot;store_address&quot;: &quot;find me the address of the store&quot;,
+        &quot;store_number&quot;: &quot;Find me the number of the store (it's in parentheses)&quot;,
+        &quot;store_phone&quot;: &quot;Find me the phone number of the store&quot;
+        }
+)
+
+store_urls = city_pages.extract(
+    item_template = {
+        &quot;url&quot;: &quot;Find me the URLs of Store detail pages.&quot;
+    }
+)
+</code></pre>
+<p>In the above snippets, the <code>city_pages</code> workflow was only ever executed
+once.</p>
+<p>Optionally, a URL and/or params may be passed here to initialize
+the workflow with them.</p>
+<p>Workflow parameters are given in a dictionary.
+E.g. if your workflow
+has a <code>{{state_name}}</code> parameter, you might pass:</p>
+<pre><code>{ 'state_name': 'Alaska' }
+</code></pre>
+<p>or perhaps</p>
+<pre><code>{ 'state_name': ['Alaska', 'Hawaii'] }
+</code></pre>
+<p>if you wish to run the workflow for both states and collect the results.</p>
 <h2 id="args">Args</h2>
 <dl>
-<dt><strong><code>workflow_id</code></strong></dt>
-<dd>ID of an existing workflow to run</dd>
-<dt><strong><code>workflow</code></strong></dt>
-<dd>A Workflow object to register and run</dd>
+<dt><strong><code>url</code></strong></dt>
+<dd>URL to start from</dd>
 <dt><strong><code>params</code></strong></dt>
-<dd>Optional parameters for the workflow</dd>
-</dl>
-<h2 id="returns">Returns</h2>
-<p>Job ID</p>
-<h2 id="raises">Raises</h2>
+<dd>Workflow parameters.</dd>
+</dl></div>
+</dd>
+<dt id="fetchfox_sdk.client.FetchFoxSDK.workflow_by_id"><code class="name flex">
+<span>def <span class="ident">workflow_by_id</span></span>(<span>self, workflow_id) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Use a public workflow ID</p>
+<p>Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")</p></div>
+</dd>
+<dt id="fetchfox_sdk.client.FetchFoxSDK.workflow_from_json"><code class="name flex">
+<span>def <span class="ident">workflow_from_json</span></span>(<span>self, json_workflow) ‑> <a title="fetchfox_sdk.workflow.Workflow" href="workflow.html#fetchfox_sdk.workflow.Workflow">Workflow</a></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Given a JSON string, such as you can generate in the wizard at
+<a href="https://fetchfox.ai,">https://fetchfox.ai,</a> create a workflow from it.</p>
+<p>Once created, it can be used like a regular workflow.</p>
+<h2 id="args">Args</h2>
 <dl>
-<dt><code>ValueError</code></dt>
-<dd>If neither workflow_id nor workflow is provided</dd>
+<dt><strong><code>json_workflow</code></strong></dt>
+<dd>This must be a valid JSON string that represents a Fetchfox Workflow.
+You should not usually try to write these manually, but simply copy-paste from the web interface.</dd>
 </dl></div>
 </dd>
 </dl>
@@ -560,12 +695,14 @@ in this case, you will also want to provide parameters.</p>
 <h4><code><a title="fetchfox_sdk.client.FetchFoxSDK" href="#fetchfox_sdk.client.FetchFoxSDK">FetchFoxSDK</a></code></h4>
 <ul class="">
 <li><code><a title="fetchfox_sdk.client.FetchFoxSDK.await_job_completion" href="#fetchfox_sdk.client.FetchFoxSDK.await_job_completion">await_job_completion</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.extract" href="#fetchfox_sdk.client.FetchFoxSDK.extract">extract</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.find_urls" href="#fetchfox_sdk.client.FetchFoxSDK.find_urls">find_urls</a></code></li>
 <li><code><a title="fetchfox_sdk.client.FetchFoxSDK.get_job_status" href="#fetchfox_sdk.client.FetchFoxSDK.get_job_status">get_job_status</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.get_workflow" href="#fetchfox_sdk.client.FetchFoxSDK.get_workflow">get_workflow</a></code></li>
 <li><code><a title="fetchfox_sdk.client.FetchFoxSDK.get_workflows" href="#fetchfox_sdk.client.FetchFoxSDK.get_workflows">get_workflows</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.just_extract" href="#fetchfox_sdk.client.FetchFoxSDK.just_extract">just_extract</a></code></li>
 <li><code><a title="fetchfox_sdk.client.FetchFoxSDK.register_workflow" href="#fetchfox_sdk.client.FetchFoxSDK.register_workflow">register_workflow</a></code></li>
-<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.run_workflow" href="#fetchfox_sdk.client.FetchFoxSDK.run_workflow">run_workflow</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.workflow" href="#fetchfox_sdk.client.FetchFoxSDK.workflow">workflow</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.workflow_by_id" href="#fetchfox_sdk.client.FetchFoxSDK.workflow_by_id">workflow_by_id</a></code></li>
+<li><code><a title="fetchfox_sdk.client.FetchFoxSDK.workflow_from_json" href="#fetchfox_sdk.client.FetchFoxSDK.workflow_from_json">workflow_from_json</a></code></li>
 </ul>
 </li>
 </ul>

@@ -1,15 +1,19 @@
 import pytest
 from fetchfox_sdk.workflow import Workflow
 
+class FakeSDK:
+    def nqprint(self,*args, **kwargs):
+        print(*args,**kwargs)
+
 def test_init():
     """Test basic initialization of workflow"""
-    w = Workflow()
+    w = Workflow(FakeSDK())
     assert w._workflow
 
 def test_init_step():
     """Test the init step configuration"""
     url = "https://example.com"
-    w = Workflow().init(url)
+    w = Workflow(FakeSDK()).init(url)
     
     expected = {
         "steps": [{
@@ -30,12 +34,12 @@ def test_extract():
 
     template = {"name": "What's the name?", "price": "What's the price?"}
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
         .extract(template)
     )
 
-    # I want to default to single=True and maxPages=1 and limit=None
+    # I want to default to single=False and maxPages=1 and limit=None
     
     assert len(w._workflow["steps"]) == 2
     assert w._workflow["steps"][1] == {
@@ -43,35 +47,15 @@ def test_extract():
         "args": {
             "limit": None,
             "questions": template,
-            "single": True,
+            "single": False,
             "maxPages": 1
-        }
-    }
-
-def test_find_urls():
-    instruction = "Find all product links"
-    w = (
-        Workflow()
-        .init("https://example.com")
-        .find_urls(instruction)
-    )
-
-    # Default to maxpages 1, limit None
-
-    assert len(w._workflow["steps"]) == 2
-    assert w._workflow["steps"][1] == {
-        "name": "crawl",
-        "args": {
-            "query": instruction,
-            "maxPages": 1,
-            "limit": None
         }
     }
 
 def test_limit():
     limit = 5
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
         .extract({"name": "What's the name?"})
         .limit(limit)
@@ -82,7 +66,7 @@ def test_limit():
 def test_limit__cannot_be_set_twice():
     """Test that attempting to set limit twice raises ValueError"""
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
         .extract({"name": "What's the name?"})
         .limit(5)
@@ -95,7 +79,7 @@ def test_filter():
     """Test filter step configuration"""
     instruction = "Exclude items over $100"
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
         .extract({"price": "What's the price?"})
         .filter(instruction)
@@ -114,14 +98,13 @@ def test_unique():
     """Test unique step configuration"""
     fields = ["url", "name"]
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
-        .find_urls("Find products")
         .unique(fields)
     )
 
-    assert len(w._workflow["steps"]) == 3
-    assert w._workflow["steps"][2] == {
+    assert len(w._workflow["steps"]) == 2
+    assert w._workflow["steps"][1] == {
         "name": "unique",
         "args": {
             "fields": fields,
@@ -132,14 +115,12 @@ def test_unique():
 def test_complex_chain():
     """Test a more complex chain of operations"""
     url = "https://example.com"
-    find_urls_instructions = "Find product links"
     template = {"name": "What's the name?", "price": "What's the price?"}
     limit = 10
 
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init(url)
-        .find_urls(find_urls_instructions)
         .extract(template)
         .limit(limit)
         #.unique("url")
@@ -155,18 +136,10 @@ def test_complex_chain():
                 }
             },
             {
-                "name": "crawl",
-                "args": {
-                    "query": find_urls_instructions,
-                    "maxPages": 1,
-                    "limit": None
-                }
-            },
-            {
                 "name": "extract",
                 "args": {
                     "questions": template,
-                    "single": True, #TODO
+                    "single": False,
                     "maxPages": 1,
                     "limit": None
                 }
@@ -181,69 +154,34 @@ def test_complex_chain():
 def test_all__steps_can_have_limit_parameter():
     """Test that each step type can have its own limit parameter"""
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
-        .find_urls("Find products", limit=5)
         .extract({"name": "What's the name?"}, limit=4)
         .filter("Exclude expensive items", limit=3)
         .unique(["name"], limit=2)
     )
 
     steps = w.to_dict()["steps"]
-    assert len(steps) == 5
-    assert steps[1]["args"]["limit"] == 5  # find_urls limit
-    assert steps[2]["args"]["limit"] == 4  # extract limit
-    assert steps[3]["args"]["limit"] == 3  # filter limit
-    assert steps[4]["args"]["limit"] == 2  # unique limit
+    assert len(steps) == 4
+    assert steps[1]["args"]["limit"] == 4  # extract limit
+    assert steps[2]["args"]["limit"] == 3  # filter limit
+    assert steps[3]["args"]["limit"] == 2  # unique limit
 
 def test_transform_type_steps__can_have_max_pages():
     """Test that max_pages parameter works for supported steps"""
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
-        .find_urls("Find products", max_pages=5)
         .extract({"name": "What's the name?"}, max_pages=4)
     )
 
     steps = w.to_dict()["steps"]
-    assert steps[1]["args"]["maxPages"] == 5  # find_urls max_pages
-    assert steps[2]["args"]["maxPages"] == 4  # extract max_pages
-
-def test_from_json():
-    """Test creating workflow from JSON"""
-    json_str = '''
-    {
-        "steps": [
-            {
-                "name": "const",
-                "args": {
-                    "items": [{"url": "https://example.com"}],
-                    "maxPages": 1
-                }
-            },
-            {
-                "name": "extract",
-                "args": {
-                    "questions": {"name": "What's the name?"},
-                    "single": true,
-                    "maxPages": 1
-                }
-            }
-        ],
-        "options": {
-            "limit": 5
-        }
-    }
-    '''
-    
-    w = Workflow.from_json(json_str)
-    assert len(w._workflow["steps"]) == 2
-    assert w._workflow["options"]["limit"] == 5
+    assert steps[1]["args"]["maxPages"] == 4  # extract max_pages
 
 def test_to_dict():
     """Test converting workflow to dictionary"""
     w = (
-        Workflow()
+        Workflow(FakeSDK())
         .init("https://example.com")
         .extract({"name": "What's the name?"})
         .limit(5)
