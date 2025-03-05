@@ -47,7 +47,7 @@ class FetchFox:
             'Authorization': f'Bearer: {self.api_key}'
         }
 
-        self.quiet = False
+        self.quiet = quiet
         self._executor = ThreadPoolExecutor(max_workers=1)
         # TODO: this needs to be changed to support concurrent job polling,
         # but I am setting it to 1 right now as a sanity-check
@@ -373,7 +373,7 @@ class FetchFox:
                     # We have a new result_item
                     results_changed_dt = datetime.now()
                     seen_ids.add(jri_id)
-                    print("")
+                    self._nqprint("")
                     yield self._cleanup_job_result_item(job_result_item)
 
             if results_changed_dt:
