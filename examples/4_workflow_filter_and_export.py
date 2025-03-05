@@ -3,6 +3,8 @@ import fetchfox_sdk
 fox = fetchfox_sdk.FetchFox()
 
 # Fetchfox can run complex workflows.
+# Aside from crawling URLs (see previous example), Fetchfox can do AI-powered
+# natural language filtering on your results.
 
 # Let's visit a page listing bikes for sale, and get URLs to individual bikes
 bikes_detail_page_urls = \
@@ -27,9 +29,11 @@ bikes_for_sale = \
 negotiable_bikes = \
     bikes_for_sale.filter(
         "Exclude any items where the seller indiciates unwillingness to "
-        "negotiate on price.")
+        "negotiate on price.  Avoid listings with phrases such as"
+        "'price is firm', 'no tire-kickers', or 'I know what I have'.")
 
 # Workflows are lazy, so nothing is run until the result items are needed here:
+# It may take ~30 seconds for results to start arriving.
 for bike in negotiable_bikes:
     print(f"{bike}")
 
