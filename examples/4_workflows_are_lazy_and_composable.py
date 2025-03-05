@@ -2,103 +2,87 @@ import fetchfox_sdk
 from pprint import pprint
 import logging
 
-fox = fetchfox_sdk.FetchFox()
+fox = fetchfox_sdk.FetchFox(quiet=True)
 
-city_pages = \
-	fox.extract(
-    	"https://locations.traderjoes.com/pa/",
-    	{"url": "Find me all the URLs for the city directories"}
-    )
-# City pages is a workflow.  It will not be executed until the results are
-# needed somewhere.
+top_posts = \
+    fox.extract(
+        "https://news.ycombinator.com",
+        {"url": "Find me all the URLs of the comments pages."
+                "They'll all look like https://news.ycombinator.com/item?id=$SOMETHING"
+        },
+        limit=10)
+# top_posts is a workflow.
+# It will not be executed until the results are needed
 
-# Here, we'll directly trigger execution and take a look at some intermediate
-# results:
-list_of_city_pages = list(city_pages)
+# Here, we'll take a look at what was retrieved:
+print("Found Post URLs:")
+for post in top_posts:
+    print(f"  {post.url}")
 
-# That yields:
-#  list_of_city_pages = [
-#     {'url': 'https://locations.traderjoes.com/pa/ardmore/'},
-#     {'url': 'https://locations.traderjoes.com/pa/berwyn/'},
-#	  <...>
-#  ]
+# top_posts is now carrying those results with it.
 
-# city_pages is now carrying those results with it.
+# We can derive multiple workflows from top_posts, and
+# now they'll all inherit the results we already have.
 
-# We can derive multiple workflows from the one that already has results now.
+####
+# First workflow derived from top_posts:
+####
 
-# Let's try two different ways of extracting the same type of item.
-# We want items like this:
-store_item_template = {
-    "store_address": "find me the address of the store",
-    "store_number": "Find me the number of the store (it's in parentheses)",
-    "store_phone": "Find me the phone number of the store"
+user_urls_for_posters_of_top_ten_posts = \
+    top_posts.extract(
+        {"url": "The link to the profile of the user who submitted this post."
+                "The URL will look like https://news.ycombinator.com/user?id=$USERNAME."
+                "ONLY include URL for the post's author."
+                "Do not include profiles for any commenters."},
+        mode='single')
+
+# This is the information we want to extract for each of the posters:
+poster_info_template = {
+    "username": "What is the username of this user?",
+    "karma_points": "What is the number of 'karma' points this user has?",
+    "created_date": "What is the 'created' date for this user?"
 }
 
-store_url_template = {
-	"url": "The URLs of the store detail pages, for each individual store."
-}
+poster_infos = \
+    user_urls_for_posters_of_top_ten_posts.extract(
+        poster_info_template,
+        mode='single')
 
+####
+# Second workflow derived from top_posts:
+####
 
-#TJ is the wrong example.
-# We want to demonstrate, in particular, branching a workflow to extract two
-# different types of mutually exclusive things from the same results.
-# Maybe "top ten posts", but in one flow we follow the username links to their profiles
-# and find their karma, but in another flow we follow the post URLs to get something
+# A post can either be a link, or have a textual body.
+links_and_usernames_from_top_ten_posts = \
+    top_posts.extract({
+        "url": "If the main content of the post is an external link to an article"
+               "provide it here.  If the post is a text post (which has it's own"
+               "content and NO external link), simply provide the post URL.",
+        "username": "The username of the poster."
+        },
+        mode='single')
 
+summaries_of_post_content = \
+    links_and_usernames_from_top_ten_posts.extract({
+        "content_summary":
+            "Briefly summarize the main content of the article."
+            "Ignore all comments and extra information."
+            "There is only one article or post."
+        },
+        mode="single")
 
-# The first thing we'll do is extract store_items directly from the
-# city index pages:
-store_info = city_pages.extract(store_item_template)
+print("\n")
 
-# The other thing we'll try is
-store_urls = city_pages.extract({"url": "The URLs of Store detail pages."})
-# Now `store_urls` is a workflow which is seeded with those URLs that we
-# also have stored in `list_of_city_pages`.
-# When `store_urls` is executed, we will ONLY execute this new extraction
-# step, and we will NOT re-do the initial query to get the city-page URLs.
+print("#####")
+print("Posters info:")
+print('#####')
+print("")
+for poster_info in poster_infos:
+    pprint(dict(poster_info))
 
-# We can dump the results here.  Since city pages is already carrying
-# results, that workflow will not be re-run.
-# Since store_urls hasn't been executed yet, we will implicitly run it now
-# and export the results.
-city_pages.export("city_pages.csv", force_overwrite=True)
-store_urls.export("stores.jsonl", force_overwrite=True)
-
-# As of now, `store_info` has actually never executed.
-# I want to try a different approach for getting the store details and
-# compare those results to those from `store_info`
-
-# In the below, we'll actually load the store detail pages, and then try to
-# extract the same information from those pages as we did from the list pages
-
-store_info_from_detail_pages = \
-    store_urls.extract(
-        item_template=store_item_template,
-    )
-
-# We'll sort the results so they're easy to compare
-
-sorted_store_info = sorted(store_info, key=lambda x: x['store_number'])
-
-sorted_store_info2 = \
-    sorted(store_info_from_detail_pages, key=lambda x: x['store_number'])
-
-# Note that the above triggers execution of the workflows
-
-assert len(sorted_store_info) == len(sorted_store_info2)
-for i in range(len(sorted_store_info)):
-    store_from_city_page = sorted_store_info[i]
-    store_from_store_page = sorted_store_info2[i]
-
-    if store_from_city_page != store_from_store_page:
-        print(f"Difference found for store_number {store_from_city_page['store_number']}:")
-
-        # Print differences field by field
-        for key in store_from_city_page.keys():
-            if store_from_city_page[key] != store_from_store_page.get(key):
-                print(f"  {key}:")
-                print(f"    store from city page: {store_from_city_page[key]}")
-                print(f"    Store from store page: {store_from_store_page.get(key)}")
-
-        print("-" * 50)  # Separator for readability
+print("#####")
+print("Summaries:")
+print("#####")
+print("")
+for summary in summaries_of_post_content:
+    pprint(dict(summary))

@@ -15,8 +15,7 @@ ebay_items = \
         {
             "url":  "Find me the links for each product detail page."
                     "Only include those that are offering free delivery."
-        }
-    )
+        })
 
 for ebay_item in ebay_items.limit(10):
     print(f"Found: {ebay_item.url}")
