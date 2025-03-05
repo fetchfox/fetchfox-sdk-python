@@ -85,3 +85,6 @@ print("#####")
 print("")
 for summary in summaries_of_post_content:
     pprint(dict(summary))
+
+# NOTE: This example loads ~20 pages and processes a lot of text,
+# so it may take more than a minute to finish.

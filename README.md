@@ -32,6 +32,7 @@ item_set = fox.extract(
     },
     limit=10)
 
+# This may take ~10-20 seconds
 for item in item_set:
     print(item)
     print(item.name)
@@ -62,6 +63,7 @@ trails_posts = posts.filter(
     "Only show me posts about trails, skip those marked 'gear review'")
 
 # If we do something like the below, we'll execute `posts`
+# (this may take 30-40 seconds)
 print("Todays Posts:")
 for post in posts:
     print(f"  {post.title}")

@@ -2,7 +2,7 @@ import fetchfox_sdk
 
 fox = fetchfox_sdk.FetchFox()
 
-STATUS_URL = "https://status.openai.com/"
+STATUS_URL = "https://status.anthropic.com/"
 
 # Here we'll provide a template, and ask for another field.
 # "Impact Level" is actually only presented as a variation in the coloring, but
@@ -20,7 +20,8 @@ incident_item_template = {
         "Please provide the impact level for the incident here."
 }
 
-incidents = fox.extract(STATUS_URL, incident_item_template)
+incidents = fox.extract(STATUS_URL, incident_item_template, mode='multiple')
 
+# This may take ~30 seconds to show any results
 for incident in incidents:
     print(f"  {incident}")

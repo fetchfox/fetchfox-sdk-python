@@ -3,7 +3,7 @@ import fetchfox_sdk
 fox = fetchfox_sdk.FetchFox()
 
 # Here we'll find the URLs to the products listed on this page.
-# You might to do this to build our own pipeline locally.
+# You might to do this to build your own pipeline locally.
 
 # If, for example,  you just want to an extraction on each one of these URLS
 # though, Fetchfox can manage the execution of that workflow too!
@@ -17,5 +17,6 @@ ebay_items = \
                     "Only include those that are offering free delivery."
         })
 
+# This may take ~45 seconds before showing results.
 for ebay_item in ebay_items.limit(10):
     print(f"Found: {ebay_item.url}")
