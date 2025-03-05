@@ -315,7 +315,7 @@ class Workflow:
                 if os.path.exists(filename) and overwrite:
                     raise RuntimeError("No results.  Refusing to overwrite.")
                 else:
-                    print("No results to export.")
+                    self._sdk._nqprint("No results to export.")
 
         # Now we access the magic property, so execution will occur if needed
         raw_results = [ dict(result_item) for result_item in self.all_results ]
@@ -373,6 +373,9 @@ class Workflow:
                     f"Reserved names are: {', '.join(RESERVED_PROPERTIES)}"
                 )
 
+        if mode not in ["single", "multiple", "auto"]:
+            raise ValueError("Mode may only be 'single'|'multiple'|'auto'")
+
         new_instance = self._clone()
 
         new_step = {
@@ -380,7 +383,7 @@ class Workflow:
             "args": {
                 "questions": item_template,
                 "maxPages": max_pages,
-                "limit": limit
+                "limit": limit,
             }
         }
 
@@ -388,14 +391,7 @@ class Workflow:
             new_step['args']['view'] = view
 
         if mode is not None:
-            if mode == 'single':
-                new_step['args']['single'] = True
-            elif mode == 'multiple':
-                new_step['args']['single'] = False
-            else:
-                raise ValueError(
-                    "Allowable modes are 'single', 'multiple' or 'auto'")
-
+            new_step['args']['mode'] = mode
 
         new_instance._workflow["steps"].append(new_step)
 
