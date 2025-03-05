@@ -373,7 +373,7 @@ class Workflow:
                     f"Reserved names are: {', '.join(RESERVED_PROPERTIES)}"
                 )
 
-        if mode not in ["single", "multiple", "auto"]:
+        if mode is not None and mode not in ["single", "multiple", "auto"]:
             raise ValueError("Mode may only be 'single'|'multiple'|'auto'")
 
         new_instance = self._clone()
