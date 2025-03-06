@@ -95,7 +95,7 @@ MSRP,_url,frame_size,full_description,price,url
 1099,https://www.bicyclebluebook.com/marketplace/buy-now,58 cm,"2020 Cannondale CAAD Optimo 3, 58 cm (XL), equipped with Shimano Sora 2x9 gears, very light use, excellent condition, always stored indoors.",950,https://www.bicyclebluebook.com/marketplace/buy-now/#1
 ```
 
-Also provided is a `unique` step, which can be used to filter out any duplicate items.
+Also provided is a `unique` step, which can be used to filter out any duplicate items.  See  the API doc here: [Workflow.unique()](api.md#fetchfox_sdk.Workflow.unique)
 
 ```
 {%
