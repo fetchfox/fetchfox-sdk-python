@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, List, Generator, Union
 import logging
 import concurrent.futures
 
-from .result_item import ResultItem
+from .item import Item
 
 logger = logging.getLogger('fetchfox')
 
@@ -30,12 +30,12 @@ class Workflow:
     @property
     def all_results(self):
         """Get all results, executing the query if necessary, blocks until done.
-        Returns results as ResultItem objects for easier attribute access.
+        Returns results as Item objects for easier attribute access.
         """
         if not self.has_results:
             self._run__block_until_done() # writes to self._results
 
-        return [ResultItem(item) for item in self._results]
+        return [Item(item) for item in self._results]
 
     def results(self):
         yield from self._results_gen()
@@ -57,11 +57,11 @@ class Workflow:
             return True
         return False
 
-    def __iter__(self) -> Generator[ResultItem, None, None]:
+    def __iter__(self) -> Generator[Item, None, None]:
         """Make the workflow iterable.
         Accessing the results property will execute the workflow if necessary.
         """
-        # Use the results property which already returns ResultItems
+        # Use the results property which already returns Items
         yield from self.results()
 
     def __getitem__(self, key):
@@ -73,7 +73,7 @@ class Workflow:
         Args:
             key: Can be an integer index or a slice
         """
-        # Results property already returns ResultItems
+        # Results property already returns Items
         return self.all_results[key]
 
     def __bool__(self):
@@ -121,7 +121,7 @@ class Workflow:
                     "args": {
                         "items": copy.deepcopy(self._results)
                         # We use the internal _results field, because it's a
-                        # list of dictionaries rather than ResultItems
+                        # list of dictionaries rather than Items
                     }
                 }
             ]
@@ -153,9 +153,9 @@ class Workflow:
             self._ran_job_id = job_id #track that we have ran
             for item in self._sdk._job_result_items_gen(job_id):
                 self._results.append(item)
-                yield ResultItem(item)
+                yield Item(item)
         else:
-            yield from self.all_results #yields ResultItems
+            yield from self.all_results #yields Items
 
     def _future_done_cb(self, future):
         """Done-callback: triggered when the future completes
@@ -295,7 +295,7 @@ class Workflow:
             limit: limit the number of items yielded by this step
             view: 'html' | 'selectHtml' | 'text' - defaults to HTML (the full HTML).  Use 'selectHTML' to have the AI see only text and links.  Use 'text' to have the AI see only text.
         """
-        # Validate field names to prevent collisions with ResultItem methods
+        # Validate field names to prevent collisions with Item methods
         RESERVED_PROPERTIES = {'keys', 'items', 'values', 'to_dict', 'get'}
 
         for field_name in item_template.keys():

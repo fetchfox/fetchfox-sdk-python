@@ -1,4 +1,4 @@
-class ResultItem:
+class Item:
     """
     Wrapper for result items that provides attribute access with dot notation
     while maintaining dictionary-like compatibility.
@@ -9,7 +9,7 @@ class ResultItem:
     def __getattr__(self, name):
         if name in self._data:
             return self._data[name]
-        raise AttributeError(f"'ResultItem' object has no attribute '{name}'")
+        raise AttributeError(f"'Item' object has no attribute '{name}'")
 
     def __getitem__(self, key):
         return self._data[key]
