@@ -14,7 +14,16 @@ runs locally, check out our [open-source core project](https://github.com/fetchf
 If you are logged in to FetchFox, you can get your API key here:
 [https://fetchfox.ai/settings/api-keys](https://fetchfox.ai/settings/api-keys)
 
-## Extracting Information From Pages
+#### Configuration
+If you export the `FETCHFOX_API_KEY` environment variable, the SDK will use that.
+You can also provide the key when initializing the SDK like this:
+```
+FetchFox(api_key="YOUR_API_KEY_HERE")
+```
+---
+## Example: Extracting Information from GitHub
+
+### Simple Extraction
 
 Fetchfox can extract structured information from websites.  The most basic usage
 is to simply give it a URL and a template that describes the structure of the items
@@ -22,40 +31,67 @@ you want to extract.
 
 ```python
 {%
-	include-markdown '../examples/1_extract.py'
+	include-markdown '../examples/quickstart/quickstart1.py'
 	comments=false
 %}
-
 ```
-The above will provide several items that look like this:
+The above will output something like this:
 ```json
 {
-    "title": "Elevated errors on requests",
-    "investigation_start_time": "2025-03-04 21:09 PST",
-    "resolution_time": "2025-03-05 11:46 PST",
-    "_url": "https://status.anthropic.com/"
+    "forks": "55.4k",
+    "stars": "189k",
+    "name": "torvalds/linux",
+    "_url": "https://github.com/torvalds/linux"
 }
 ```
 
-## Extracting URLs
+### Extracting Multiple Items
+
+FetchFox can extract multiple items from one page.
+
+```python
+{%
+    include-markdown '../examples/quickstart/quickstart2.py'
+    comments=false
+    start="# <<<QS_INCLUDE_START>>>"
+    end="# <<<QS_INCLUDE_END>>>"
+%}
+```
+
+The above will extract commit titles and hashes.
+
+#### Pagination
+
+If you specify `max_pages`, FetchFox will use AI to load subsequent pages after
+your starting URL.
+
+
+### Following URLs
 
 URLs are just another thing that you can extract from a page.  Simply include a
 `url` field in your item template and describe how to find the URLs.
 
-```
-{%
-	include-markdown '../examples/2_find_urls.py'
-	comments=false
-%}
-
-```
-
-The above will extract items like this:
-```json
-{ "url": "https://www.ebay.com/itm/234785237284" }
-```
 When you produce items with a `url` field, Fetchfox can load the those URLs in
 the next step of a workflow.
+
+```python
+{%
+    include-markdown '../examples/quickstart/quickstart2.5.py'
+    comments=false
+    start="# <<<QS_INCLUDE_START>>>"
+    end="# <<<QS_INCLUDE_END>>>"
+%}
+```
+Now, we can extend that workflow by chaining another step.  This will load the pages for the
+individual commits and extract information from those pages.
+```python
+{%
+    include-markdown '../examples/quickstart/quickstart2.5.py'
+    comments=false
+    start="# <<<QS_INCLUDE_START2>>>"
+    end="# <<<QS_INCLUDE_END2>>>"
+%}
+```
 
 ## Workflows
 
