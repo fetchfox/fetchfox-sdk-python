@@ -65,6 +65,21 @@ The above will extract commit titles and hashes.
 If you specify `max_pages`, FetchFox will use AI to load subsequent pages after
 your starting URL.
 
+```python
+{%
+    include-markdown '../examples/quickstart/quickstart2_paginate.py'
+    comments=false
+    start="# <<<QS_INCLUDE_START>>>"
+    end="# <<<QS_INCLUDE_END>>>"
+%}
+```
+This works like the previous example, but loads many more results.
+
+#### Extraction Modes: Single and Multiple
+
+You may have noticed the `mode` parameter being used in extractions.  This controls how many items will be yielded per page.
+
+You can specify `single` or `multiple`.  If you don't provide this parameter, FetchFox will use AI to guess, based on your template and the contents of the page.
 
 ### Following URLs
 
@@ -93,58 +108,60 @@ individual commits and extract information from those pages.
 %}
 ```
 
-## Workflows
+### Workflows
 
 With FetchFox, you can chain operations together.  This creates workflows.
-Execution of workflows is managed on our backend.  This means you never have to worry about getting blocked, and you don't have to think about concurrency.
+Execution of workflows is managed on our backend.
+
+Let's extend the examples above to look at the authors of the ten most recent commits
+and see how many GitHub followers they have.
+
+To accomplish this, we'll use the following steps:
+
+1. Load the list of commits and get a URL for each individual commit
+2. Load each individual commit and get a URL for the author
+3. Remove any duplicate authors (the same user may have made multiple commits)
+4. Load each unique author's page and extract their follower count
 
 ```python
 {%
-	include-markdown '../examples/3_simple_workflows.py'
+	include-markdown '../examples/quickstart/quickstart3.py'
 	comments=false
+    start="# <<<QS_INCLUDE_START>>>"
+    end="# <<<QS_INCLUDE_END>>>"
 %}
-
 ```
 
 The above will print output similar to this:
 ```
-Courage & Cowardice by Gene Weingarten:
-    In this article, Gene Weingarten reflects on the decline of courage in journalism and the importance of having a clear moral authority. He discusses the impact of Katharine Graham's leadership and the responsibility of media organizations to uphold their values especially during critical times. Weingarten critiques the Washington Post's decision-making under pressure, emphasizing the need for integrity and honesty in reporting.
+torvalds has 229k followers
+[...]
 ```
 
-### Filter, Unique, and Export
+#### Filter and Export
 
-FetchFox can also filter items given natural language instructions, as well as export JSONL and CSV files.
-Below is an example of a longer workflow, which includes a "filter" step that will remove
-some items from the previous step.
+FetchFox can also filter items given natural language instructions.
+
+Let's look at the list of commits and find some that are related to networking,
+then export their extended descriptions to a file.
 
 ```python
 {%
-	include-markdown '../examples/4_workflow_filter_and_export.py'
+	include-markdown '../examples/quickstart/quickstart4.py'
 	comments=false
+    start="# <<<QS_INCLUDE_START>>>"
+    end="# <<<QS_INCLUDE_END>>>"
 %}
 
 ```
-The above will produce a csv file like this:
+The above will produce a JSONL file with lines like this:
 ```
-MSRP,_url,frame_size,full_description,price,url
-1099,https://www.bicyclebluebook.com/marketplace/buy-now,58 cm,"2020 Cannondale CAAD Optimo 3, 58 cm (XL), equipped with Shimano Sora 2x9 gears, very light use, excellent condition, always stored indoors.",950,https://www.bicyclebluebook.com/marketplace/buy-now/#1
-```
-
-Also provided is a `unique` step, which can be used to filter out any duplicate items.  See  the API doc here: [Workflow.unique()](api.md#fetchfox_sdk.Workflow.unique)
-
-```
-{%
-	include-markdown '../examples/5_workflows_are_lazy_and_composable.py'
-	comments=false
-%}
-
+{
+    "title": "Merge tag 'net-6.14-rc6' of [...]"
+    "sha": "f315296c92fd4b7716bdea17f727ab431891dc3b",
+    "_url": "https://github.com/torvalds/linux/commits/master/"
+}
 ```
 
-```
-{%
-	include-markdown '../examples/6_concurrency.py'
-	comments=false
-%}
-
-```
+#### More About Workflows
+Workflow are lazy, carry results with them, and may be run concurrently.  See [concepts](../concepts) and [more examples](../more_examples).

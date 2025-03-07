@@ -5,7 +5,9 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: quickstart.md
+  - Concepts: concepts.md
   - API Reference: api.md
+  - More Examples: more_examples.md
 
 plugins:
   - search
