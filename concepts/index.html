@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Concepts - FetchFox SDK for Python</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Concepts";
+        var mkdocs_page_input_path = "concepts.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FetchFox SDK for Python
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Getting Started</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">Concepts</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#workflows">Workflows</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#workflow-steps">Workflow Steps</a>
+        <ul>
+    <li class="toctree-l4"><a class="reference internal" href="#extract">Extract</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#filter">Filter</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#unique">Unique</a>
+    </li>
+    <li class="toctree-l4"><a class="reference internal" href="#limit">Limit</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#workflows-are-lazy-and-composable">Workflows Are Lazy and Composable</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#workflows-carry-results">Workflows Carry Results</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#execution">Execution</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#concurrent-workflow-execution">Concurrent Workflow Execution</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api/">API Reference</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../more_examples/">More Examples</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FetchFox SDK for Python</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">Concepts</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="key-concepts">Key Concepts<a class="headerlink" href="#key-concepts" title="Permanent link">&para;</a></h1>
+<p>FetchFox is a powerful scraping tool.  It uses AI to scrape webpages intelligently.</p>
+<h2 id="workflows">Workflows<a class="headerlink" href="#workflows" title="Permanent link">&para;</a></h2>
+<p>Every operation is a workflow.  You can chain operations together into longer workflows.  These operations are called 'steps'.  Each step is given the previous step's output as its input.</p>
+<h3 id="workflow-steps">Workflow Steps<a class="headerlink" href="#workflow-steps" title="Permanent link">&para;</a></h3>
+<h4 id="extract">Extract<a class="headerlink" href="#extract" title="Permanent link">&para;</a></h4>
+<p>This is the most fundamental step.  It loads a webpage and extracts the requested information.</p>
+<p>Usually, your workflows should start with an <code>extract()</code> step, provided with a starting URL.</p>
+<p>The <code>extract()</code> step always takes URLs as input.  When it's used later in a workflow, it will operate on the URLs provided by the <em>previous</em> step.</p>
+<p>So, if your step generates items with a <code>url</code> field, and you follow that step with an <code>extract()</code> step, that will load each of those URLs and extract the requested data from each of those pages.</p>
+<p>This step has a <code>limit</code> option which is different from the global limit step.  It allows you to limit the numbef of items <em>this</em> step will generate.</p>
+<h4 id="filter">Filter<a class="headerlink" href="#filter" title="Permanent link">&para;</a></h4>
+<p>You can't use the <code>filter()</code> step as the <em>first</em> step in your workflow, since it does not generate any items.  When you use it after a step that yields items, it will have access to those items.</p>
+<p>To use <code>filter()</code>, you provide natural language instructions to the AI.  Each item will be processed according to these instructions and will be excluded or included in the output accordingly.</p>
+<h4 id="unique">Unique<a class="headerlink" href="#unique" title="Permanent link">&para;</a></h4>
+<p>The unique step, like <code>filter()</code>, cannot be used as the first step.  It takes a list of fieldnames with respect to the items it accepts as input.  The input items will be deduplicated, with only the given fields being considered.</p>
+<p>For example, suppose your previous step generated items like this:</p>
+<pre><code>{&quot;name&quot;: &quot;Alice&quot;, &quot;id&quot;: &quot;123&quot;}
+{&quot;name&quot;: &quot;Bob&quot;, &quot;id&quot;: &quot;456&quot;}
+{&quot;name&quot;: &quot;Charlie&quot;, &quot;id&quot;: &quot;456&quot;}
+{&quot;name&quot;: &quot;Dennis&quot;, &quot;id&quot;: &quot;789&quot;}
+{&quot;name&quot;: &quot;Alice&quot;, &quot;id&quot;: &quot;000&quot;}
+</code></pre>
+<p>If you filtered by <code>['name']</code>, one of the "Alice" items would be removed.</p>
+<p>If you filtered by <code>['id']</code>, one of the items with id <code>456</code> would be removed.</p>
+<p>If you filtered by <code>['name','id']</code>, then <strong>no</strong> items would be removed, because they are all unique when considered this way.</p>
+<h4 id="limit">Limit<a class="headerlink" href="#limit" title="Permanent link">&para;</a></h4>
+<p>The limit step may only be used once in a workflow, and sets a global limit on the number of items that will be generated as output.  This does <strong>not</strong> place any limits on the intermediate steps.</p>
+<h3 id="workflows-are-lazy-and-composable">Workflows Are Lazy and Composable<a class="headerlink" href="#workflows-are-lazy-and-composable" title="Permanent link">&para;</a></h3>
+<p>Workflows will not be executed until their results are needed.  You can also create branching workflows by creating multiple that inherit from a single parent workflow.</p>
+<h3 id="workflows-carry-results">Workflows Carry Results<a class="headerlink" href="#workflows-carry-results" title="Permanent link">&para;</a></h3>
+<p>After executed, a workflow will carry it's results cached, so that using these results multiple times won't run the workflow multiple times.</p>
+<p>When you chain onto a workflow that already has results, the child workflows will be initialized with the existing results.  This is great, because you can create a workflow, look at the results, and then extend it without re-executing the part that already ran.</p>
+<h2 id="execution">Execution<a class="headerlink" href="#execution" title="Permanent link">&para;</a></h2>
+<p>Workflows are executed on the FetchFox backend.  We handle request concurrency and proxying.</p>
+<h3 id="concurrent-workflow-execution">Concurrent Workflow Execution<a class="headerlink" href="#concurrent-workflow-execution" title="Permanent link">&para;</a></h3>
+<p>You can also run multiple entire workflows concurrently.  See <a href="../more_examples/#simple-concurrency-with-futures">the example here</a></p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../quickstart/" class="btn btn-neutral float-left" title="Getting Started"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../api/" class="btn btn-neutral float-right" title="API Reference">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../quickstart/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../api/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

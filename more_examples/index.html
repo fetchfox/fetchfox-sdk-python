@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>More Examples - FetchFox SDK for Python</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+        <link href="../assets/_mkdocstrings.css" rel="stylesheet" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "More Examples";
+        var mkdocs_page_input_path = "more_examples.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> FetchFox SDK for Python
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../quickstart/">Getting Started</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../concepts/">Concepts</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../api/">API Reference</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">More Examples</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#lazy-and-composable-workflows">Lazy and Composable Workflows</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#concurrency">Concurrency</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#simple-concurrency-with-futures">Simple Concurrency with Futures</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">FetchFox SDK for Python</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">More Examples</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="more-examples">More Examples<a class="headerlink" href="#more-examples" title="Permanent link">&para;</a></h1>
+<h2 id="lazy-and-composable-workflows">Lazy and Composable Workflows<a class="headerlink" href="#lazy-and-composable-workflows" title="Permanent link">&para;</a></h2>
+<pre><code>import fetchfox_sdk
+from pprint import pprint
+
+fox = fetchfox_sdk.FetchFox(quiet=True)
+
+top_posts = \
+    fox.extract(
+        &quot;https://news.ycombinator.com&quot;,
+        {&quot;url&quot;: &quot;Find me all the URLs of the comments pages.&quot;
+                &quot;They'll all look like https://news.ycombinator.com/item?id=$SOMETHING&quot;
+        },
+        limit=10)
+# top_posts is a workflow.
+# It will not be executed until the results are needed
+
+# Here, we'll take a look at what was retrieved:
+print(&quot;Found Post URLs:&quot;)
+for post in top_posts:
+    print(f&quot;  {post.url}&quot;)
+
+# top_posts is now carrying those results with it.
+
+# We can derive multiple workflows from top_posts, and
+# now they'll all inherit the results we already have.
+
+####
+# First workflow derived from top_posts:
+####
+
+user_urls_for_posters_of_top_ten_posts = \
+    top_posts.extract(
+        {&quot;url&quot;: &quot;The link to the profile of the user who submitted this post.&quot;
+                &quot;The URL will look like https://news.ycombinator.com/user?id=$USERNAME.&quot;
+                &quot;ONLY include URL for the post's author.&quot;
+                &quot;Do not include profiles for any commenters.&quot;},
+        mode='single')
+
+# This is the information we want to extract for each of the posters:
+poster_info_template = {
+    &quot;username&quot;: &quot;What is the username of this user?&quot;,
+    &quot;karma_points&quot;: &quot;What is the number of 'karma' points this user has?&quot;,
+    &quot;created_date&quot;: &quot;What is the 'created' date for this user?&quot;
+}
+
+poster_infos = \
+    user_urls_for_posters_of_top_ten_posts.extract(
+        poster_info_template,
+        mode='single')
+
+####
+# Second workflow derived from top_posts:
+####
+
+# A post can either be a link, or have a textual body.
+links_and_usernames_from_top_ten_posts = \
+    top_posts.extract({
+        &quot;url&quot;: &quot;If the main content of the post is an external link to an article&quot;
+               &quot;provide it here.  If the post is a text post (which has it's own&quot;
+               &quot;content and NO external link), simply provide the post URL.&quot;,
+        &quot;username&quot;: &quot;The username of the poster.&quot;
+        },
+        mode='single')
+
+summaries_of_post_content = \
+    links_and_usernames_from_top_ten_posts.extract({
+        &quot;content_summary&quot;:
+            &quot;Briefly summarize the main content of the article.&quot;
+            &quot;Ignore all comments and extra information.&quot;
+            &quot;There is only one article or post.&quot;
+        },
+        mode=&quot;single&quot;)
+
+print(&quot;\n&quot;)
+
+print(&quot;#####&quot;)
+print(&quot;Posters info:&quot;)
+print('#####')
+print(&quot;&quot;)
+for poster_info in poster_infos:
+    pprint(dict(poster_info))
+
+print(&quot;#####&quot;)
+print(&quot;Summaries:&quot;)
+print(&quot;#####&quot;)
+print(&quot;&quot;)
+for summary in summaries_of_post_content:
+    pprint(dict(summary))
+
+# NOTE: This example loads ~20 pages and processes a lot of text,
+# so it may take more than a minute to finish.
+
+</code></pre>
+<h2 id="concurrency">Concurrency<a class="headerlink" href="#concurrency" title="Permanent link">&para;</a></h2>
+<h3 id="simple-concurrency-with-futures">Simple Concurrency with Futures<a class="headerlink" href="#simple-concurrency-with-futures" title="Permanent link">&para;</a></h3>
+<p>Using <code>Workflow.results_future()</code> will give you a standard Python <a href="https://docs.python.org/3/library/concurrent.futures.html#future-objects">concurrent.futures.Future</a>.</p>
+<p>The simplest way to run multiple workflows concurrently is simply by requesting the futures and then using the results.</p>
+<pre><code>
+top_posts_on_hn = \
+    fox.extract(
+        &quot;https://news.ycombinator.com&quot;,
+        {&quot;title&quot;: &quot;Find me all the titles of the posts.&quot;},
+        limit=10)
+
+top_posts_on_reddit = \
+    fox.extract(
+        &quot;https://old.reddit.com&quot;,
+        {&quot;title&quot;: &quot;Find me all the titles of the posts.&quot;},
+        limit=10)
+
+top_posts_on_slashdot = \
+    fox.extract(
+        &quot;https://news.slashdot.org/&quot;,
+        {&quot;title&quot;: &quot;Find me all the titles of the posts.&quot;},
+        limit=10)
+
+# The easiest way to run workflows concurrently is to use futures:
+
+top_posts_on_hn_future = top_posts_on_hn.results_future()
+top_posts_on_reddit_future = top_posts_on_reddit.results_future()
+top_posts_on_slashdot_future = top_posts_on_slashdot.results_future()
+# The above will run all 3 workflows.
+# These variables hold standard Python concurrent.futures.Futures
+
+# If you don't want to do anything until all of them are finished, you can
+# simply collect the results by using .result() on the futures.
+# This will block until they all finish.
+
+hn_posts_results = top_posts_on_hn_future.result()
+reddit_posts_results = top_posts_on_reddit_future.result()
+slashdot_posts_results = top_posts_on_slashdot_future.result()
+# The futures resolve directly to a list of result items.
+
+print(hn_posts_results[0])
+
+# After those futures complete, the results are *also* available
+# via the workflows, which may be used normally.
+
+print(top_posts_on_hn[1])
+
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../api/" class="btn btn-neutral float-left" title="API Reference"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../api/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
