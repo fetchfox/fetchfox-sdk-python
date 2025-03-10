@@ -8,7 +8,7 @@ fox = fetchfox_sdk.FetchFox(quiet=True)
 # on the backend.
 
 # You can also run multiple workflows concurrently with the Python SDK.
-
+# <<<QS_INCLUDE_START1>>>
 top_posts_on_hn = \
     fox.extract(
         "https://news.ycombinator.com",
@@ -42,7 +42,6 @@ top_posts_on_slashdot_future = top_posts_on_slashdot.results_future()
 hn_posts_results = top_posts_on_hn_future.result()
 reddit_posts_results = top_posts_on_reddit_future.result()
 slashdot_posts_results = top_posts_on_slashdot_future.result()
-
 # The futures resolve directly to a list of result items.
 
 print(hn_posts_results[0])
@@ -51,6 +50,7 @@ print(hn_posts_results[0])
 # via the workflows, which may be used normally.
 
 print(top_posts_on_hn[1])
+# <<<QS_INCLUDE_END1>>>
 
 
 print("######################################################################")

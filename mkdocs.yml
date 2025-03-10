@@ -1,0 +1,20 @@
+site_name: FetchFox SDK for Python
+theme:
+  name: readthedocs
+
+nav:
+  - Home: index.md
+  - Getting Started: quickstart.md
+  - Concepts: concepts.md
+  - API Reference: api.md
+  - More Examples: more_examples.md
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+  - include-markdown
+
+markdown_extensions:
+  - toc:
+      permalink: true

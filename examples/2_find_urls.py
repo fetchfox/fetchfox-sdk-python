@@ -17,6 +17,8 @@ ebay_items = \
                     "Only include those that are offering free delivery."
         })
 
-# This may take ~45 seconds before showing results.
+# Do something else or extend your workflow here, it won't run
+# until the results are used somewhere.
+
 for ebay_item in ebay_items.limit(10):
     print(f"Found: {ebay_item.url}")
