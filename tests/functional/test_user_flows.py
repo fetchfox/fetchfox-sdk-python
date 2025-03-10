@@ -271,3 +271,34 @@ def test_07_concurrency(fox):
     
     # Check that results are accessible via the workflows too
     assert results1[0]['title'] == workflow1[0].title, "Results from future and workflow should match"
+
+def test_extract__init_with_multiple_urls(fox):
+    # List of repositories to track
+    repo_list = [
+        "https://github.com/torvalds/linux",
+        "https://github.com/microsoft/vscode",
+        "https://github.com/facebook/react"
+    ]
+
+    # Initialize workflow with multiple URLs directly
+    repos_stats = fox.extract(
+        repo_list,
+        {
+            "name": "What is the full name of this repository?",
+            "stars": "How many stars does this repository have?",
+            "open_issues": "How many open issues does this repository have?",
+            "last_update": "When was this repository last updated?"
+        },
+        mode='single'
+    )
+
+    results = list(repos_stats)
+
+    # Should have results for each repo
+    assert len(results) == len(repo_list)
+
+    for result in results:
+        assert hasattr(result, 'name')
+        assert hasattr(result, 'stars')
+        assert hasattr(result, 'open_issues')
+        assert hasattr(result, 'last_update')
