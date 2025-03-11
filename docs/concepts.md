@@ -19,6 +19,10 @@ So, if your step generates items with a `url` field, and you follow that step wi
 
 This step has a `limit` option which is different from the global limit step.  It allows you to limit the numbef of items _this_ step will generate.
 
+#### Extract Operates on Multiple URLs
+
+When passed multiple items from previous steps, the `extract()` step will process them all.  When you're using `extract()` as your first step, you can also provide it with multiple URLs.  Just pass a list of URLs instead of a single URL.
+
 #### Filter
 You can't use the `filter()` step as the _first_ step in your workflow, since it does not generate any items.  When you use it after a step that yields items, it will have access to those items.
 
