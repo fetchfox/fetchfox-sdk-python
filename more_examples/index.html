@@ -59,6 +59,8 @@
               <ul class="current">
                 <li class="toctree-l1 current"><a class="reference internal current" href="#">More Examples</a>
     <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#starting-an-extraction-with-multiple-urls">Starting an Extraction with Multiple URLs</a>
+    </li>
     <li class="toctree-l2"><a class="reference internal" href="#lazy-and-composable-workflows">Lazy and Composable Workflows</a>
     </li>
     <li class="toctree-l2"><a class="reference internal" href="#concurrency">Concurrency</a>
@@ -94,8 +96,28 @@
             <div class="section" itemprop="articleBody">
               
                 <h1 id="more-examples">More Examples<a class="headerlink" href="#more-examples" title="Permanent link">&para;</a></h1>
+<h2 id="starting-an-extraction-with-multiple-urls">Starting an Extraction with Multiple URLs<a class="headerlink" href="#starting-an-extraction-with-multiple-urls" title="Permanent link">&para;</a></h2>
+<pre><code class="language-python"># List of repositories to track
+repo_list = [
+    &quot;https://github.com/torvalds/linux&quot;,
+    &quot;https://github.com/microsoft/vscode&quot;,
+    &quot;https://github.com/facebook/react&quot;
+]
+
+# Initialize workflow with multiple URLs directly
+repos_stats = fox.extract(
+    repo_list,
+    {
+        &quot;name&quot;: &quot;What is the full name of this repository?&quot;,
+        &quot;stars&quot;: &quot;How many stars does this repository have?&quot;
+    },
+    mode='single'
+)
+
+results = list(repos_stats)
+</code></pre>
 <h2 id="lazy-and-composable-workflows">Lazy and Composable Workflows<a class="headerlink" href="#lazy-and-composable-workflows" title="Permanent link">&para;</a></h2>
-<pre><code>import fetchfox_sdk
+<pre><code class="language-python">import fetchfox_sdk
 from pprint import pprint
 
 fox = fetchfox_sdk.FetchFox(quiet=True)
@@ -191,7 +213,7 @@ for summary in summaries_of_post_content:
 <h3 id="simple-concurrency-with-futures">Simple Concurrency with Futures<a class="headerlink" href="#simple-concurrency-with-futures" title="Permanent link">&para;</a></h3>
 <p>Using <code>Workflow.results_future()</code> will give you a standard Python <a href="https://docs.python.org/3/library/concurrent.futures.html#future-objects">concurrent.futures.Future</a>.</p>
 <p>The simplest way to run multiple workflows concurrently is simply by requesting the futures and then using the results.</p>
-<pre><code>
+<pre><code class="language-python">
 top_posts_on_hn = \
     fox.extract(
         &quot;https://news.ycombinator.com&quot;,

@@ -57,6 +57,8 @@
         <ul>
     <li class="toctree-l4"><a class="reference internal" href="#extract">Extract</a>
     </li>
+    <li class="toctree-l4"><a class="reference internal" href="#extract-operates-on-multiple-urls">Extract Operates on Multiple URLs</a>
+    </li>
     <li class="toctree-l4"><a class="reference internal" href="#filter">Filter</a>
     </li>
     <li class="toctree-l4"><a class="reference internal" href="#unique">Unique</a>
@@ -122,6 +124,8 @@
 <p>The <code>extract()</code> step always takes URLs as input.  When it's used later in a workflow, it will operate on the URLs provided by the <em>previous</em> step.</p>
 <p>So, if your step generates items with a <code>url</code> field, and you follow that step with an <code>extract()</code> step, that will load each of those URLs and extract the requested data from each of those pages.</p>
 <p>This step has a <code>limit</code> option which is different from the global limit step.  It allows you to limit the numbef of items <em>this</em> step will generate.</p>
+<h4 id="extract-operates-on-multiple-urls">Extract Operates on Multiple URLs<a class="headerlink" href="#extract-operates-on-multiple-urls" title="Permanent link">&para;</a></h4>
+<p>When passed multiple items from previous steps, the <code>extract()</code> step will process them all.  When you're using <code>extract()</code> as your first step, you can also provide it with multiple URLs.  Just pass a list of URLs instead of a single URL.</p>
 <h4 id="filter">Filter<a class="headerlink" href="#filter" title="Permanent link">&para;</a></h4>
 <p>You can't use the <code>filter()</code> step as the <em>first</em> step in your workflow, since it does not generate any items.  When you use it after a step that yields items, it will have access to those items.</p>
 <p>To use <code>filter()</code>, you provide natural language instructions to the AI.  Each item will be processed according to these instructions and will be excluded or included in the output accordingly.</p>
