@@ -328,12 +328,14 @@ class FetchFox:
                     raise
 
     def _cleanup_job_result_item(self, item):
-        filtered_item = {
-            k: v
-            for k, v
-            in item.items()
-            if not k.startswith('_')
-        }
+        return item
+
+        # filtered_item = {
+        #     k: v
+        #     for k, v
+        #     in item.items()
+        #     if not k.startswith('_')
+        # }
 
         # TODO: What should we be doing with `_url`?
         # # Keep _url if we have no other keys
