@@ -324,7 +324,14 @@ class Workflow:
             new_step['args']['view'] = view
 
         if per_page is not None:
-            new_step['args']['per_page'] = per_page
+            # We're calling it per-page, but it's still 'mode' on the server
+            if per_page == "one":
+                mode = "single"
+            elif per_page == "many":
+                mode = "multiple"
+            elif per_page == "auto":
+                mode == "auto"
+            new_step['args']['mode'] = mode
 
         new_instance._workflow["steps"].append(new_step)
 
