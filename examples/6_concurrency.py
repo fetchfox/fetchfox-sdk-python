@@ -2,7 +2,7 @@ import fetchfox_sdk
 from pprint import pprint
 import concurrent.futures
 
-fox = fetchfox_sdk.FetchFox(quiet=True)
+fox = fetchfox_sdk.FetchFox()
 
 # When you run a workflow, we handle concurrent execution of your requests
 # on the backend.

@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def fox():
     """Create a FetchFox instance with quiet mode to reduce output noise."""
-    return FetchFox(quiet=True)
+    return FetchFox()
 
 @pytest.fixture
 def temp_dir():

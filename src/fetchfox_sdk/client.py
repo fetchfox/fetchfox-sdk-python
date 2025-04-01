@@ -21,7 +21,7 @@ _API_PREFIX = "/api/v2/"
 class FetchFox:
     def __init__(self,
             api_key: Optional[str] = None, host: str = "https://fetchfox.ai",
-            quiet=False):
+            verbose=False):
         """Initialize the FetchFox SDK.
 
         You may also provide an API key in the environment variable `FETCHFOX_API_KEY`.
@@ -29,7 +29,7 @@ class FetchFox:
         Args:
             api_key: Your FetchFox API key.  Overrides the environment variable.
             host: API host URL (defaults to production)
-            quiet: set to True to suppress printing
+            verbose: set to True to print more information
         """
         self.base_url = urljoin(host, _API_PREFIX)
 
@@ -48,7 +48,7 @@ class FetchFox:
             'Authorization': f'Bearer: {self.api_key}'
         }
 
-        self.quiet = quiet
+        self.verbose = verbose
         self._executor = ThreadPoolExecutor(max_workers=1)
         # TODO: this needs to be changed to support concurrent job polling,
         # but I am setting it to 1 right now as a sanity-check
@@ -84,7 +84,7 @@ class FetchFox:
         return body
 
     def _nqprint(self, *args, **kwargs):
-        if not self.quiet:
+        if self.verbose:
             print(*args, **kwargs)
 
     def _workflow(self, url_or_urls: Union[str, List[str]] = None) -> "Workflow":

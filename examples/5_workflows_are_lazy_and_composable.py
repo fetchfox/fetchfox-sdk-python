@@ -1,7 +1,7 @@
 import fetchfox_sdk
 from pprint import pprint
 
-fox = fetchfox_sdk.FetchFox(quiet=True)
+fox = fetchfox_sdk.FetchFox()
 
 top_posts = \
     fox.extract(

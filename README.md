@@ -14,7 +14,7 @@ NOTE: This interface is currently subject to change as we respond to early feedb
 ## Quick Start
 ```python
 from fetchfox_sdk import FetchFox
-fox = FetchFox(api_key="YOUR_API_KEY", quiet=True) # Initialize the client
+fox = FetchFox(api_key="YOUR_API_KEY") # Initialize the client
 # or, the API key may be provided in the environment variable: FETCHFOX_API_KEY
 ```
 
