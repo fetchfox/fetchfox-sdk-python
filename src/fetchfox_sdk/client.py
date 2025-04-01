@@ -11,6 +11,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 import threading
+import signal
 
 from .workflow import Workflow
 
@@ -52,6 +53,21 @@ class FetchFox:
         self._executor = ThreadPoolExecutor(max_workers=1)
         # TODO: this needs to be changed to support concurrent job polling,
         # but I am setting it to 1 right now as a sanity-check
+
+        self._attached_jobs = []
+        signal.signal(signal.SIGINT, self._handle_signit)
+
+    def _handle_signit(self, sig, frame):
+        """
+        On Ctrl-c, abort any attached jobs (not touching detached jobs)
+        """
+        for job_id in self._attached_jobs:
+            try:
+                self._request("POST", f"jobs/{job_id}/stop")
+                logger.info("Aborted job: {job_id}")
+            except Exception as e:
+                logger.error("Failed to abort job [{job_id}]: {e}")
+        sys.exit(1)
 
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
@@ -222,7 +238,7 @@ class FetchFox:
         return response
 
     def _run_workflow(self, workflow_id: Optional[str] = None,
-                    workflow: Optional[Workflow] = None,
+                    workflow: Optional[Workflow] = None, detached=False,
                     params: Optional[dict] = None) -> str:
         """Run a workflow. Either provide the ID of a registered workflow,
         or provide a workflow object (which will be registered
@@ -274,6 +290,8 @@ class FetchFox:
 
         #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
         response = self._request('POST', f'workflows/{workflow_id}/run')
+        if not detached:
+            self._attached_jobs.append(response['jobId'])
 
         # NOTE: If we need to return anything else here, we should keep this
         # default behavior, but add an optional kwarg so "full_response=True"
