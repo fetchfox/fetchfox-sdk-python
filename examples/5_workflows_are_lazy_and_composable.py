@@ -33,7 +33,7 @@ user_urls_for_posters_of_top_ten_posts = \
                 "The URL will look like https://news.ycombinator.com/user?id=$USERNAME."
                 "ONLY include URL for the post's author."
                 "Do not include profiles for any commenters."},
-        mode='single')
+        per_page='one')
 
 # This is the information we want to extract for each of the posters:
 poster_info_template = {
@@ -45,7 +45,7 @@ poster_info_template = {
 poster_infos = \
     user_urls_for_posters_of_top_ten_posts.extract(
         poster_info_template,
-        mode='single')
+        per_page='one')
 
 ####
 # Second workflow derived from top_posts:
@@ -59,7 +59,7 @@ links_and_usernames_from_top_ten_posts = \
                "content and NO external link), simply provide the post URL.",
         "username": "The username of the poster."
         },
-        mode='single')
+        per_page='one')
 
 summaries_of_post_content = \
     links_and_usernames_from_top_ten_posts.extract({
@@ -68,7 +68,7 @@ summaries_of_post_content = \
             "Ignore all comments and extra information."
             "There is only one article or post."
         },
-        mode="single")
+        per_page='one')
 
 print("\n")
 

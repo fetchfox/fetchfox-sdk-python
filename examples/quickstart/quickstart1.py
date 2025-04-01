@@ -10,7 +10,7 @@ items = \
             "stars": "How many stars does this repository have?",
             "name": "What is the full name of the repository?"
         },
-        mode='single')
+        per_page='one')
 
 # This may take 15 seconds or so.
 print(items[0])

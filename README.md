@@ -100,7 +100,7 @@ comment_item_template = {
 comments_from_sleeping_gear_posts = \
     sleeping_gear_posts.extract(
         comment_item_template,
-        mode='multiple')
+        per_page='many')
 # When the above runs, FetchFox will fetch each URL from the remaining
 # items in `posts`
 

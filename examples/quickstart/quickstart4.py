@@ -9,7 +9,7 @@ items = \
             "title": "What is the title of the commit?",
             "sha": "What is the hash of the commit?",
         },
-        mode="multiple",
+        per_page="many",
         max_pages=5) \
     .filter("Only show me commits that pertain to networking.") \
     .limit(10)

@@ -43,7 +43,7 @@ def test_01_basic_extraction(fox):
             "stars": "How many stars does this repository have?",
             "name": "What is the full name of the repository?"
         },
-        mode='single')
+        per_page='one')
     
     # Access the result which will trigger execution
     result = items[0]
@@ -76,7 +76,7 @@ def test_02_multiple_items_extraction(fox):
             "title": "What is the title of the commit?",
             "sha": "What is the hash of the commit?",
         },
-        mode="multiple")
+        per_page='many')
     
     results = list(items.limit(3))
     
@@ -102,7 +102,7 @@ def test_03_follow_urls_workflow(fox):
             "sha": "What is the hash of the commit?",
             "url": "What is the link to the commit?"
         },
-        mode="multiple")
+        per_page='many')
     
     # Now follow the URL to get more details
     items2 = items.extract(
@@ -110,7 +110,7 @@ def test_03_follow_urls_workflow(fox):
             "username": "Who committed this commit?",
             "summary": "Summarize the extended description briefly."
         },
-        mode='single')
+        per_page='one')
     
     for result in items2.limit(5):
 
@@ -138,7 +138,7 @@ def test_04_unique_filter_workflow(fox, capsys):
         {
             "url": "What is the link to the commit?"
         },
-        mode="multiple",
+        per_page='many',
         limit=5)
     
     # Get contributor profiles
@@ -147,7 +147,7 @@ def test_04_unique_filter_workflow(fox, capsys):
             "username": "Who committed this commit?",
             "url": "Link to the committing user's profile. Should look like github.com/USERNAME"
         },
-        mode='single')
+        per_page='one')
     
     # Apply unique filter
     unique_contributors = contributor_urls.unique(['url'])
@@ -180,7 +180,7 @@ def test_05_export_functionality(fox, temp_dir):
             "title": "What is the title of the commit?",
             "sha": "What is the hash of the commit?",
         },
-        mode="multiple",
+        per_page='many',
         limit=3)
     
     # Export to JSONL and CSV
@@ -227,7 +227,7 @@ def test_06_multi_step_workflows(fox):
             "description": "What is the description of this repository?",
             "stars": "How many stars does this repository have?"
         },
-        mode="single")
+        per_page='one')
     
     # Get results
     results = list(repo_details)
@@ -289,7 +289,7 @@ def test_extract__init_with_multiple_urls(fox):
             "open_issues": "How many open issues does this repository have?",
             "last_update": "When was this repository last updated?"
         },
-        mode='single'
+        per_page='one'
     )
 
     results = list(repos_stats)

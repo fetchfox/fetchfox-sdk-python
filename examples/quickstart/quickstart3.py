@@ -10,20 +10,20 @@ items = fox \
         {
             "url": "What is the link to the commit?"
         },
-        mode="multiple",
+        per_page="many",
         limit=10) \
     .extract(
         {
             "username": "Who committed this commit?",
             "url": "Link to the committing user. Looks like github.com/$USERNAME"
         },
-        mode='single') \
+        per_page='one') \
     .unique(['url']) \
     .extract(
         {
             "follower_count": "How many followers does the user have?"
         },
-        mode='single')
+        per_page='one')
 
 # This one takes a bit longer, since more pages are being loaded.
 for item in items:

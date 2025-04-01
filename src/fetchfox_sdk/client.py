@@ -410,7 +410,7 @@ class FetchFox:
 
         Args:
             item_template: the item template described above
-            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
+            per_page: 'one'|'many'|'auto' - defaults to 'auto'.  Set this to 'one' if each URL has only a single item.  Set this to 'many' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """

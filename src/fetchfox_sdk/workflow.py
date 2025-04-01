@@ -269,7 +269,7 @@ class Workflow:
                     f.write(json.dumps(item) + '\n')
 
 
-    def extract(self, item_template: dict, mode=None, view=None,
+    def extract(self, item_template: dict, per_page=None, view=None,
             limit=None, max_pages=1) -> "Workflow":
         """Provide an item_template which describes what you want to extract
         from the URLs processed by this step.
@@ -290,7 +290,7 @@ class Workflow:
 
         Args:
             item_template: the item template described above
-            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
+            per_page: 'one'|'many'|'auto' - defaults to 'auto'.  Set this to 'one' if each URL has only a single item.  Set this to 'many' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
             view: 'html' | 'selectHtml' | 'text' - defaults to HTML (the full HTML).  Use 'selectHTML' to have the AI see only text and links.  Use 'text' to have the AI see only text.
@@ -306,8 +306,8 @@ class Workflow:
                     f"Reserved names are: {', '.join(RESERVED_PROPERTIES)}"
                 )
 
-        if mode is not None and mode not in ["single", "multiple", "auto"]:
-            raise ValueError("Mode may only be 'single'|'multiple'|'auto'")
+        if per_page is not None and per_page not in ["one", "many", "auto"]:
+            raise ValueError("per_page may only be 'one'|'many'|'auto'")
 
         new_instance = self._clone()
 
@@ -323,8 +323,8 @@ class Workflow:
         if view is not None:
             new_step['args']['view'] = view
 
-        if mode is not None:
-            new_step['args']['mode'] = mode
+        if per_page is not None:
+            new_step['args']['per_page'] = per_page
 
         new_instance._workflow["steps"].append(new_step)
 
