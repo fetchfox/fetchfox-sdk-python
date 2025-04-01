@@ -39,8 +39,9 @@ class FetchFox:
 
         if not self.api_key:
             raise ValueError(
-                "API key must be provided either as argument or "
-                "in FETCHFOX_API_KEY environment variable")
+                "API key must be provided either as an argument or "
+                "in FETCHFOX_API_KEY environment variable.  Find your key at: \n"
+                "https://fetchfox.ai/settings/api-keys")
 
         self.headers = {
             'Content-Type': 'application/json',

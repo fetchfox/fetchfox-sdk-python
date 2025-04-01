@@ -219,7 +219,7 @@ def test_06_multi_step_workflows(fox):
             "url": "Find the URLs to the trending repositories. They should start with 'https://github.com/'"
         },
         limit=2)
-    
+
     # Follow the URLs to get repo details
     repo_details = repos.extract(
         {
