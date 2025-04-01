@@ -201,6 +201,8 @@ class FetchFox:
 
         Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")
 
+        Returns:
+            A workflow object.
         """
         workflow_json = self._get_workflow(workflow_id)
         return self.workflow_from_json(workflow_json)
@@ -236,6 +238,50 @@ class FetchFox:
         """Get a registered workflow by ID."""
         response = self._request("GET", f"workflow/{id}")
         return response
+
+    def run_detached(self, workflow):
+        """Run a workflow without watching for the results.  Returns a job_id
+        which can be queried later by calling
+        FetchFoxSDK.get_results_from_detached(job_id).
+        You can exit this process, and get the results later.
+
+        Args:
+            workflow: a workflow object.
+        """
+
+        # Exposing this separately rather than exposing "_run_workflow", because
+        # it would likely confuse people to have a function called "run_workflow"
+        # that they should not normally use.
+        return self._run_workflow(workflow=workflow, detached=True)
+
+    def get_results_from_detached(self, job_id, wait=True):
+        """Pass a job_id and retrieve the results.  By default, will *wait* for
+        the job to finish and will return the complete results.
+
+        If you want to not block, pass wait=False and either the complete results
+        or `None` will be returned.
+
+        Args:
+            job_id: job_id from `FetchFoxSDK.run_detached()`
+            wait: use wait=False to get an immediate response, which will either be the full results or None if the job is not yet complete.
+        Returns:
+            The full results of the job.  Or, if wait=False and the job is not done, None.
+        """
+        if wait:
+            return list(self._job_result_items_gen(job_id))
+        else:
+            resp = self._poll_status_once(job_id, detached_skip_wait=True)
+            if not resp:
+                return None
+            if not resp.get('done'):
+                return None
+            else:
+                results = [
+                    self._cleanup_job_result_item(e)
+                    for e
+                    in resp['results']['items']
+                ]
+
 
     def _run_workflow(self, workflow_id: Optional[str] = None,
                     workflow: Optional[Workflow] = None, detached=False,
@@ -314,7 +360,7 @@ class FetchFox:
         """
         return self._request('GET', f'jobs/{job_id}')
 
-    def _poll_status_once(self, job_id):
+    def _poll_status_once(self, job_id, detached_skip_wait=False):
         """Poll until we get one status response.  This may be more than one poll,
         if it is the first one, since the job will 404 for a while before
         it is scheduled."""
@@ -330,6 +376,9 @@ class FetchFox:
 
                 return status
             except requests.exceptions.HTTPError as e:
+                if detached_skip_wait:
+                    return None
+
                 if e.response.status_code in [404, 500]:
                     self._nqprint("x", end="")
                     sys.stdout.flush()
