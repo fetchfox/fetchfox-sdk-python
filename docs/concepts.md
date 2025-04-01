@@ -31,6 +31,8 @@ To use `filter()`, you provide natural language instructions to the AI.  Each it
 #### Unique
 The unique step, like `filter()`, cannot be used as the first step.  It takes a list of fieldnames with respect to the items it accepts as input.  The input items will be deduplicated, with only the given fields being considered.
 
+You can also pass a single fieldname without wrapping it in a list.
+
 For example, suppose your previous step generated items like this:
 ```
 {"name": "Alice", "id": "123"}
@@ -40,9 +42,9 @@ For example, suppose your previous step generated items like this:
 {"name": "Alice", "id": "000"}
 ```
 
-If you filtered by `['name']`, one of the "Alice" items would be removed.
+If you filtered by `name`, one of the "Alice" items would be removed.
 
-If you filtered by `['id']`, one of the items with id `456` would be removed.
+If you filtered by `id`, one of the items with id `456` would be removed.
 
 If you filtered by `['name','id']`, then **no** items would be removed, because they are all unique when considered this way.
 

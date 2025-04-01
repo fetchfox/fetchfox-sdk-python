@@ -343,18 +343,23 @@ class Workflow:
         new_instance._workflow['options']["limit"] = n
         return new_instance
 
-    def unique(self, fields_list: List[str], limit=None) -> "Workflow":
-        """Provide a list of fields which will be used to check the uniqueness
-        of the items passing through this step.
+    def unique(self, field_or_fields_list: List[str], limit=None) -> "Workflow":
+        """Provide a field or list of fields which will be used to check the
+        uniqueness of the items passing through this step.
 
         Any items which are duplicates (as determined by these fields only),
         will be filtered and will not be seen by the next step in your workflow.
 
         Args:
-            fields_list: the instruction described above
+            field_or_fields_list: the field or fields to use for deduplication
             limit: limit the number of items yielded by this step
         """
         new_instance = self._clone()
+
+        fields_list = (
+            field_or_fields_list if isinstance(field_or_fields_list, list)
+            else [field_or_fields_list]
+        )
 
         new_instance._workflow['steps'].append({
             "name": "unique",

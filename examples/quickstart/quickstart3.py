@@ -18,7 +18,7 @@ items = fox \
             "url": "Link to the committing user. Looks like github.com/$USERNAME"
         },
         per_page='one') \
-    .unique(['url']) \
+    .unique('url') \
     .extract(
         {
             "follower_count": "How many followers does the user have?"

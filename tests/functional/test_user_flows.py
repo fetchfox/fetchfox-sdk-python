@@ -150,7 +150,7 @@ def test_04_unique_filter_workflow(fox, capsys):
         per_page='one')
     
     # Apply unique filter
-    unique_contributors = contributor_urls.unique(['url'])
+    unique_contributors = contributor_urls.unique('url')
     
     # Check if we can filter these contributors
     filtered_contributors = \
