@@ -64,7 +64,7 @@ class FetchFox:
         for job_id in self._attached_jobs:
             try:
                 self._request("POST", f"jobs/{job_id}/stop")
-                logger.info("Aborted job: {job_id}")
+                logger.info(f"Aborted job: {job_id}")
             except Exception as e:
                 logger.error("Failed to abort job [{job_id}]: {e}")
         sys.exit(1)
