@@ -68,3 +68,20 @@ Workflows are executed on the FetchFox backend.  We handle request concurrency a
 ### Concurrent Workflow Execution
 
 You can also run multiple entire workflows concurrently.  See [the example here](../more_examples/#simple-concurrency-with-futures)
+
+### Detached Workflow Execution
+
+You can run a workflow "detached", which just means that it will persist (and continue running on the server) even if your client is interrupted.
+
+For example:
+```
+some_workflow = fox.extract(some_url, {"some_feature": "some instruction"})
+job_id = fox.run_detached(some_workflow)
+```
+Now, that process can exit or be killed, but if you've kept the `job_id`, you can get the results later:
+```
+results = fox.get_results_from_detached(job_id)
+```
+
+By default, the above will block until the results are complete.  If you simply want to check
+whether or not the results are ready, you can use `fox.get_results_from_detached(wait=False)`.

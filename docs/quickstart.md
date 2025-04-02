@@ -164,4 +164,4 @@ The above will produce a JSONL file with lines like this:
 ```
 
 #### More About Workflows
-Workflow are lazy, carry results with them, and may be run concurrently.  See [concepts](../concepts) and [more examples](../more_examples).
+Workflow are lazy, carry results with them, and may be run concurrently or detached.  See [concepts](../concepts) and [more examples](../more_examples).
