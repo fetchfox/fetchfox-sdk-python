@@ -434,7 +434,7 @@ class FetchFox:
                 for logline in logs_tail:
                     key = (logline['timestamp'], logline['message'])
                     if key not in seen_logs:
-                        self._nqprint(logline['message'])
+                        self._nqprint(f"  {logline['message']}\n")
                         seen_logs.add(key)
             except KeyError:
                 continue
