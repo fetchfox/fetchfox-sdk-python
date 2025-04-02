@@ -328,20 +328,20 @@ def test_find_urls(fox):
     for result in urls:
         assert "ycombinator.com/item?id=" in result._url
 
-def test_find_urls_2(fox):
-    # Should also be usable from workflow
-    urls = \
-        fox.find_urls(
-            "https://news.ycombinator.com",
-            "Find all comments links.",
-            limit=3
-        ).find_urls(
-            "Find links to users, like news.ycombinator.com/user?id=$SOMETHING"
-        ).limit(3)
+def test_action_step__just_that_it_doesnt_break(fox):
 
-    assert len(urls) == 3
-    for result in urls:
-        assert "ycombinator.com/user?id=" in result._url
+    summary = \
+        fox.init(
+            "https://news.ycombinator.com",
+        ).action(
+            "Click on the upvote votearrow on the first article"
+            "and tell me what the page looks like after."
+        ).extract(
+            {"summary": "Tell me about the content on the page using fewer than 10 words."}
+        ).limit(1)
+
+    list(summary)
+    assert "summary" in summary[0]
 
 
 

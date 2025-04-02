@@ -350,7 +350,8 @@ class Workflow:
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """
-        self._workflow["steps"].append({
+        new_instance = self._clone()
+        new_instance._workflow['steps'].append({
             "name": "crawl",
             "args": {
                 "query": instruction,
@@ -358,7 +359,29 @@ class Workflow:
                 "limit": limit
             }
         })
-        return self
+        return new_instance
+
+    def action(self, instruction) -> "Workflow":
+        """
+        Instruct the AI to take an action on the page.
+
+        It can click or enter text, etc.
+
+        Args:
+            instruction: a prompt for the AI to act upon the page
+        """
+        new_instance = self._clone()
+        new_instance._workflow['steps'].append({
+            "name": "action",
+            "args": {
+                "commands": [
+                    {
+                        "prompt": instruction
+                    }
+                ],
+            }
+        })
+        return new_instance
 
     def limit(self, n: int) -> "Workflow":
         """

@@ -406,7 +406,9 @@ class FetchFox:
         # TODO: What should we be doing with `_url`?
         # # Keep _url if we have no other keys
         # if not filtered_item and '_url' in item:
-        filtered_item['_url'] = item['_url']
+        if '_url' in item:
+            filtered_item['_url'] = item['_url']
+
         return filtered_item
 
     def _job_result_items_gen(self, job_id):
