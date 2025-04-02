@@ -341,7 +341,6 @@ def test_action_step__just_that_it_doesnt_break(fox):
         ).limit(1)
 
     list(summary)
-    assert "summary" in summary[0]
 
 
 

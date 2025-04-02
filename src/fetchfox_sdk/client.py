@@ -369,7 +369,6 @@ class FetchFox:
         while True:
             try:
                 status = self._get_job_status(job_id)
-                self._nqprint(".", end="")
                 sys.stdout.flush()
 
                 #TODO print partial status?
@@ -380,7 +379,7 @@ class FetchFox:
                     return None
 
                 if e.response.status_code in [404, 500]:
-                    self._nqprint("x", end="")
+                    #self._nqprint("x", end="")
                     sys.stdout.flush()
                     logger.info("Waiting for job %s to be scheduled.", job_id)
 
@@ -416,6 +415,7 @@ class FetchFox:
         self._nqprint(f"Streaming results from: [{job_id}]: ")
 
         seen_ids = set() # We need to track which have been yielded already
+        seen_logs = set()
 
         MAX_WAIT_FOR_CHANGE_MINUTES = 5
         # Job will be assumed done/stalled after this much time passes without
@@ -428,6 +428,17 @@ class FetchFox:
             # The above will block until we get one successful response
             if not first_response_dt:
                 first_response_dt = datetime.now()
+
+            try:
+                logs_tail = response['results']['logs']['tail']
+                for logline in logs_tail:
+                    key = (logline['timestamp'], logline['message'])
+                    if key not in seen_logs:
+                        self._nqprint(logline['message'])
+                        seen_logs.add(key)
+            except KeyError:
+                continue
+
 
             # We are considering only the result_items here, not partials
             if 'items' not in response['results']:
