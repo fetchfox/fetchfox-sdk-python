@@ -302,3 +302,47 @@ def test_extract__init_with_multiple_urls(fox):
         assert hasattr(result, 'stars')
         assert hasattr(result, 'open_issues')
         assert hasattr(result, 'last_update')
+
+def test_detached_workflow(fox):
+
+    some_workflow = \
+        fox.extract(
+            "https://fetchfox.ai",
+            {"blog_post_url": "find me a url linking to the latest blog post"},
+            limit=1)
+    job_id = fox.run_detached(some_workflow)
+    assert fox.get_results_from_detached(job_id, wait=False) is None
+    results = fox.get_results_from_detached(job_id)
+
+    assert len(results) == 1
+    assert hasattr(results[0], "blog_post_url")
+
+def test_find_urls(fox):
+    urls = \
+        fox.find_urls(
+            "https://news.ycombinator.com",
+            "Find all comments links."
+        ).limit(3)
+
+    assert len(urls) == 3
+    for result in urls:
+        assert "ycombinator.com/item?id=" in result._url
+
+def test_find_urls_2(fox):
+    # Should also be usable from workflow
+    urls = \
+        fox.find_urls(
+            "https://news.ycombinator.com",
+            "Find all comments links.",
+            limit=3
+        ).find_urls(
+            "Find links to users, like news.ycombinator.com/user?id=$SOMETHING"
+        ).limit(3)
+
+    assert len(urls) == 3
+    for result in urls:
+        assert "ycombinator.com/user?id=" in result._url
+
+
+
+

@@ -477,12 +477,37 @@ class FetchFox:
         To follow pagination, provide max_pages > 1.
 
         Args:
+            url_or_urls: The starting URL or a list of starting URLs
             item_template: the item template described above
             per_page: 'one'|'many'|'auto' - defaults to 'auto'.  Set this to 'one' if each URL has only a single item.  Set this to 'many' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """
         return self._workflow(url_or_urls).extract(*args, **kwargs)
+
+    def find_urls(self, url_or_urls, *args, **kwargs):
+        """Find URLs on a webpage using AI, given an instructional prompt.
+
+         An instructional prompt is just natural language instruction describing
+        the desired results.
+
+        Example Instructional Prompts:
+            "Find me all the links to bicycles that are not electric 'e-bikes'"
+            "Find me the links to each product detail page."
+            "Find me the links for each US State"
+            "Find me the links to the profiles for employees among the C-Suite"
+
+        See Workflow.find_urls for additional documentation,
+        this is just a convenience wrapper.
+
+        Args:
+            url_or_urls: The starting URL or a list of starting URLs
+            instruction: an instructional prompt as described above
+            max_pages: provide an integer > 1 if you want to follow pagination
+            limit: limits the number of items yielded by this step
+        """
+        return self._workflow(url_or_urls).find_urls(*args, **kwargs)
+
 
     def init(self, url_or_urls, *args, **kwargs):
         """Initialize the workflow with one or more URLs.

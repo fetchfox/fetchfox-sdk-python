@@ -337,6 +337,29 @@ class Workflow:
 
         return new_instance
 
+
+    def find_urls(self, instruction, limit=None, max_pages=None) -> "Workflow":
+        """Provide instructions which describe how to find the URLs
+        you want to extract from the page.
+
+        Example: "Find me all of the links to the detail pages for individual
+        earthquakes."
+
+        Args:
+            instruction: the instruction described above
+            max_pages: enable pagination from the given URL.  Defaults to one page only.
+            limit: limit the number of items yielded by this step
+        """
+        self._workflow["steps"].append({
+            "name": "crawl",
+            "args": {
+                "query": instruction,
+                "maxPages": max_pages,
+                "limit": limit
+            }
+        })
+        return self
+
     def limit(self, n: int) -> "Workflow":
         """
         Limit the total number of results that this workflow will produce.
