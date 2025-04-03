@@ -55,7 +55,11 @@ class FetchFox:
         # but I am setting it to 1 right now as a sanity-check
 
         self._attached_jobs = []
-        signal.signal(signal.SIGINT, self._handle_signit)
+        try:
+            signal.signal(signal.SIGINT, self._handle_signit)
+        except ValueError:
+            # If we're not in the main thread, we can't do this --e.g. flask req
+            pass
 
     def _handle_signit(self, sig, frame):
         """
