@@ -8,8 +8,6 @@ import concurrent.futures
 
 from .item import Item
 
-logger = logging.getLogger('fetchfox')
-
 class Workflow:
 
     _executor = concurrent.futures.ThreadPoolExecutor()
@@ -102,7 +100,7 @@ class Workflow:
             # so that, when it runs, we'll produce the desired results
             if self._ran_job_id is not None:
                 #TODO - anything else we should do when we've run but no results?
-                logger.debug("Cloning a job that ran, but which had no results")
+                self._sdk.logger.debug("Cloning a job that ran, but which had no results")
 
             new_instance = Workflow(self._sdk)
             new_instance._workflow = copy.deepcopy(self._workflow)
@@ -137,7 +135,7 @@ class Workflow:
         has results, derived workflows will be given the _results_ from this workflow,
         NOT the steps of this workflow.
         """
-        logger.debug("Running workflow to completion")
+        self._sdk.logger.debug("Running workflow to completion")
         return list(self._results_gen())
 
     def _results_gen(self):
@@ -146,7 +144,7 @@ class Workflow:
         without running again.
         """
 
-        logger.debug("Streaming Results")
+        self._sdk.logger.debug("Streaming Results")
         if not self.has_results:
             self._results = []
             job_id = self._sdk._run_workflow(workflow=self)

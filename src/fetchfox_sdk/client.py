@@ -15,14 +15,20 @@ import signal
 
 from .workflow import Workflow
 
-logger = logging.getLogger('fetchfox')
-
 _API_PREFIX = "/api/v2/"
+
+_LOG_LEVELS = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL,
+}
 
 class FetchFox:
     def __init__(self,
             api_key: Optional[str] = None, host: str = "https://fetchfox.ai",
-            verbose=False):
+            log_level="warning"):
         """Initialize the FetchFox SDK.
 
         You may also provide an API key in the environment variable `FETCHFOX_API_KEY`.
@@ -30,8 +36,9 @@ class FetchFox:
         Args:
             api_key: Your FetchFox API key.  Overrides the environment variable.
             host: API host URL (defaults to production)
-            verbose: set to True to print more information
+            log_level: debug|info|warning|error|critical, print logs >= this level to the console
         """
+
         self.base_url = urljoin(host, _API_PREFIX)
 
         self.api_key = api_key
@@ -49,7 +56,25 @@ class FetchFox:
             'Authorization': f'Bearer: {self.api_key}'
         }
 
-        self.verbose = verbose
+        # Convert log_level argument to a logging constant
+        if isinstance(log_level, str):
+            log_level = _LOG_LEVELS.get(log_level.lower(), logging.WARNING)
+        self.log_level = log_level
+
+        # Configure the logger
+        self.logger = logging.getLogger("fetchfox")
+        self.logger.setLevel(self.log_level)
+
+        # Create a default handler to print to console
+        if not self.logger.handlers:  # but only if no handler is present
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(self.log_level)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            ch.setFormatter(formatter)
+            self.logger.addHandler(ch)
+
         self._executor = ThreadPoolExecutor(max_workers=1)
         # TODO: this needs to be changed to support concurrent job polling,
         # but I am setting it to 1 right now as a sanity-check
@@ -68,7 +93,7 @@ class FetchFox:
         for job_id in self._attached_jobs:
             try:
                 self._request("POST", f"jobs/{job_id}/stop")
-                logger.info(f"Aborted job: {job_id}")
+                self.logger.info(f"Aborted job: {job_id}")
             except Exception as e:
                 logger.error("Failed to abort job [{job_id}]: {e}")
         sys.exit(1)
@@ -98,14 +123,10 @@ class FetchFox:
         response.raise_for_status()
         body = response.json()
 
-        logger.debug(
+        per_page='many'.debug(
             f"Response from %s %s:\n%s  at %s",
             method, path, pformat(body), datetime.now())
         return body
-
-    def _nqprint(self, *args, **kwargs):
-        if self.verbose:
-            print(*args, **kwargs)
 
     def _workflow(self, url_or_urls: Union[str, List[str]] = None) -> "Workflow":
         """Create a new workflow using this SDK instance.
@@ -336,7 +357,7 @@ class FetchFox:
 
         if workflow_id is None:
             workflow_id = self._register_workflow(workflow) # type: ignore
-            logger.info("Registered new workflow with id: %s", workflow_id)
+            self.logger.info("Registered new workflow with id: %s", workflow_id)
 
         #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
         response = self._request('POST', f'workflows/{workflow_id}/run')
@@ -375,17 +396,14 @@ class FetchFox:
                 status = self._get_job_status(job_id)
                 sys.stdout.flush()
 
-                #TODO print partial status?
-
                 return status
             except requests.exceptions.HTTPError as e:
                 if detached_skip_wait:
                     return None
 
                 if e.response.status_code in [404, 500]:
-                    #self._nqprint("x", end="")
                     sys.stdout.flush()
-                    logger.info("Waiting for job %s to be scheduled.", job_id)
+                    self.logger.info("Waiting for job %s to be scheduled.", job_id)
 
                     if started_waiting_for_job_dt is None:
                         started_waiting_for_job_dt = datetime.now()
@@ -416,7 +434,7 @@ class FetchFox:
 
     def _job_result_items_gen(self, job_id):
         """Yield new result items as they arrive."""
-        self._nqprint(f"Streaming results from: [{job_id}]: ")
+        self.logger.info(f"Streaming results from: [{job_id}]: ")
 
         seen_ids = set() # We need to track which have been yielded already
         seen_logs = set()
