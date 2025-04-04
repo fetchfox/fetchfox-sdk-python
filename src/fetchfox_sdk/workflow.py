@@ -26,6 +26,25 @@ class Workflow:
         self._future = None
         self._log_summaries = []
         self._log_summaries_yielded_s = set()
+        self._raw_log_level = self._sdk._LOG_LEVELS['error']
+
+    def set_log_level(self, log_level_string):
+        """
+        Set the log level for the *server* logs pertaining to jobs spawned of
+        this workflow.
+
+        The logs >= the level set here will be forwarded to the SDK's logger.
+        The logs < the level set here will be ignored.
+
+        Defaults to 'error'.
+
+        Must be set before the job runs, will not take effect if the job is
+        already started.
+
+        Args:
+            log_level: 'debug' | 'info' | 'warn' | 'error' | 'critical'
+        """
+        self._raw_log_level = self._sdk._LOG_LEVELS['log_level_string']
 
     @property
     def all_results(self):
@@ -151,7 +170,11 @@ class Workflow:
             self._results = []
             job_id = self._sdk._run_workflow(workflow=self)
             self._ran_job_id = job_id #track that we have ran
-            for item in self._sdk._job_result_items_gen(job_id, log_summaries_dest=self._log_summaries):
+            for item in self._sdk._job_result_items_gen(
+                        job_id,
+                        raw_log_level=self._raw_log_level,
+                        log_summaries_dest=self._log_summaries):
+
                 self._results.append(item)
                 yield Item(item)
         else:

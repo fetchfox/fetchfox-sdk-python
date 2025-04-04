@@ -17,15 +17,15 @@ from .workflow import Workflow
 
 _API_PREFIX = "/api/v2/"
 
-_LOG_LEVELS = {
-    "debug": logging.DEBUG,
-    "info": logging.INFO,
-    "warning": logging.WARNING,
-    "error": logging.ERROR,
-    "critical": logging.CRITICAL,
-}
-
 class FetchFox:
+    _LOG_LEVELS = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+
     def __init__(self,
             api_key: Optional[str] = None, host: str = "https://fetchfox.ai",
             log_level="warning"):
@@ -58,7 +58,7 @@ class FetchFox:
 
         # Convert log_level argument to a logging constant
         if isinstance(log_level, str):
-            log_level = _LOG_LEVELS.get(log_level.lower(), logging.WARNING)
+            log_level = self._LOG_LEVELS.get(log_level.lower(), logging.WARNING)
         self.log_level = log_level
 
         # Configure the logger
@@ -433,7 +433,8 @@ class FetchFox:
 
         return filtered_item
 
-    def _job_result_items_gen(self, job_id, log_summaries_dest=None):
+    def _job_result_items_gen(self, job_id,
+            raw_log_level=logging.ERROR, log_summaries_dest=None):
         """Yield new result items as they arrive.
         Log_summaries_dest can be a list that accumulates logs"""
         self.logger.info(f"Streaming results from: [{job_id}]: ")
@@ -477,10 +478,11 @@ class FetchFox:
                         log_line['message']
                     )
                     if key not in seen_logs:
-                        level_constant = _LOG_LEVELS[log_line['level']]
+                        level_constant = self._LOG_LEVELS[log_line['level']]
                         newmsg = f"[SERVER] {log_line['message']}"
-                        self.logger.log(level_constant, newmsg)
                         seen_logs.add(key)
+                        if level_constant >= raw_log_level:
+                            self.logger.log(level_constant, newmsg)
             except KeyError:
                 continue
 
