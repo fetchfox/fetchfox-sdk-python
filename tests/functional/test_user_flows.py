@@ -315,7 +315,7 @@ def test_detached_workflow(fox):
     results = fox.get_results_from_detached(job_id)
 
     assert len(results) == 1
-    assert hasattr(results[0], "blog_post_url")
+    assert results[0].blog_post_url is not None
 
 def test_find_urls(fox):
     urls = \

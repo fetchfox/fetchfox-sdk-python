@@ -14,6 +14,7 @@ import threading
 import signal
 
 from .workflow import Workflow
+from .item import Item
 
 
 TRACE = 5
@@ -302,8 +303,13 @@ class FetchFox:
         Returns:
             The full results of the job.  Or, if wait=False and the job is not done, None.
         """
+
         if wait:
-            return list(self._job_result_items_gen(job_id))
+            return [
+                Item(result)
+                for result
+                in list(self._job_result_items_gen(job_id))
+            ]
         else:
             resp = self._poll_status_once(job_id, detached_skip_wait=True)
             if not resp:
@@ -316,6 +322,8 @@ class FetchFox:
                     for e
                     in resp['results']['items']
                 ]
+
+                return [ Item(result) for result in results ]
 
 
     def _run_workflow(self, workflow_id: Optional[str] = None,
