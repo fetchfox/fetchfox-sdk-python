@@ -15,10 +15,19 @@ import signal
 
 from .workflow import Workflow
 
+
+TRACE = 5
+logging.addLevelName(TRACE, "TRACE")
+def trace(self, message, *args, **kwargs):
+    if self.isEnabledFor(TRACE):
+        self._log(TRACE, message, args, **kwargs)
+logging.Logger.trace = trace
+
 _API_PREFIX = "/api/v2/"
 
 class FetchFox:
     _LOG_LEVELS = {
+        "trace": TRACE,
         "debug": logging.DEBUG,
         "info": logging.INFO,
         "warning": logging.WARNING,
@@ -95,7 +104,7 @@ class FetchFox:
                 self._request("POST", f"jobs/{job_id}/stop")
                 self.logger.warning(f"Aborted job: {job_id}")
             except Exception as e:
-                logger.error("Failed to abort job [{job_id}]: {e}")
+                self.logger.error("Failed to abort job [{job_id}]: {e}")
         sys.exit(1)
 
 
@@ -124,7 +133,7 @@ class FetchFox:
         body = response.json()
 
         per_page='many'
-        self.logger.debug(
+        self.logger.trace(
             f"Response from %s %s:\n%s  at %s",
             method, path, pformat(body), datetime.now())
         return body
@@ -500,7 +509,6 @@ class FetchFox:
                     # We have a new result_item
                     results_changed_dt = datetime.now()
                     seen_ids.add(jri_id)
-                    self._nqprint("")
                     yield self._cleanup_job_result_item(job_result_item)
 
             if results_changed_dt:

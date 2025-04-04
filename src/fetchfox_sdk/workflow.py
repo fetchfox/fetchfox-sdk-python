@@ -44,7 +44,7 @@ class Workflow:
         Args:
             log_level: 'debug' | 'info' | 'warn' | 'error' | 'critical'
         """
-        self._raw_log_level = self._sdk._LOG_LEVELS['log_level_string']
+        self._raw_log_level = self._sdk._LOG_LEVELS[log_level_string]
 
     @property
     def all_results(self):
@@ -279,7 +279,7 @@ class Workflow:
                 if os.path.exists(filename) and overwrite:
                     raise RuntimeError("No results.  Refusing to overwrite.")
                 else:
-                    self._sdk._nqprint("No results to export.")
+                    self._sdk.logger.warn("No results to export.")
 
         # Now we access the magic property, so execution will occur if needed
         raw_results = [ dict(result_item) for result_item in self.all_results ]
