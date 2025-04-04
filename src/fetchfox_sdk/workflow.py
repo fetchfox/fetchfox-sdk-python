@@ -24,6 +24,8 @@ class Workflow:
         self._results = None
         self._ran_job_id = None
         self._future = None
+        self._log_summaries = []
+        self._log_summaries_yielded_s = set()
 
     @property
     def all_results(self):
@@ -149,11 +151,19 @@ class Workflow:
             self._results = []
             job_id = self._sdk._run_workflow(workflow=self)
             self._ran_job_id = job_id #track that we have ran
-            for item in self._sdk._job_result_items_gen(job_id):
+            for item in self._sdk._job_result_items_gen(job_id, log_summaries_dest=self._log_summaries):
                 self._results.append(item)
                 yield Item(item)
         else:
             yield from self.all_results #yields Items
+
+    def get_new_log_summaries(self):
+        new_logs = []
+        for log in self._log_summaries:
+            if log not in self._log_summaries_yielded_s:
+                new_logs.append(log)
+                self._log_summaries_yielded_s.add(log)
+        return new_logs
 
     def _future_done_cb(self, future):
         """Done-callback: triggered when the future completes

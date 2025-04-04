@@ -93,7 +93,7 @@ class FetchFox:
         for job_id in self._attached_jobs:
             try:
                 self._request("POST", f"jobs/{job_id}/stop")
-                self.logger.info(f"Aborted job: {job_id}")
+                self.logger.warning(f"Aborted job: {job_id}")
             except Exception as e:
                 logger.error("Failed to abort job [{job_id}]: {e}")
         sys.exit(1)
@@ -123,7 +123,8 @@ class FetchFox:
         response.raise_for_status()
         body = response.json()
 
-        per_page='many'.debug(
+        per_page='many'
+        self.logger.debug(
             f"Response from %s %s:\n%s  at %s",
             method, path, pformat(body), datetime.now())
         return body
@@ -432,11 +433,13 @@ class FetchFox:
 
         return filtered_item
 
-    def _job_result_items_gen(self, job_id):
-        """Yield new result items as they arrive."""
+    def _job_result_items_gen(self, job_id, log_summaries_dest=None):
+        """Yield new result items as they arrive.
+        Log_summaries_dest can be a list that accumulates logs"""
         self.logger.info(f"Streaming results from: [{job_id}]: ")
 
         seen_ids = set() # We need to track which have been yielded already
+        seen_log_summaries = set()
         seen_logs = set()
 
         MAX_WAIT_FOR_CHANGE_MINUTES = 5
@@ -451,16 +454,35 @@ class FetchFox:
             if not first_response_dt:
                 first_response_dt = datetime.now()
 
-            try:
-                logs_tail = response['results']['logs']['tail']
-                for logline in logs_tail:
-                    key = (logline['timestamp'], logline['message'])
-                    if key not in seen_logs:
-                        self._nqprint(f"  {logline['message']}\n")
-                        seen_logs.add(key)
+            try: #process log summaries
+                if log_summaries_dest:
+                    logs_summaries = response['results']['logs']['tail']
+                    for log_summary_line in logs_summaries:
+                        key = (
+                            log_summary_line['timestamp'],
+                            log_summary_line['message']
+                        )
+                        if key not in seen_log_summaries:
+                            log_summaries_dest.append(key)
+                            seen_log_summaries.add(key)
             except KeyError:
                 continue
 
+            try:
+                logs = response['results']['logs']['raw']
+                for log_line in logs:
+                    key = (
+                        log_line['timestamp'],
+                        log_line['level'],
+                        log_line['message']
+                    )
+                    if key not in seen_logs:
+                        level_constant = _LOG_LEVELS[log_line['level']]
+                        newmsg = f"[SERVER] {log_line['message']}"
+                        self.logger.log(level_constant, newmsg)
+                        seen_logs.add(key)
+            except KeyError:
+                continue
 
             # We are considering only the result_items here, not partials
             if 'items' not in response['results']:
