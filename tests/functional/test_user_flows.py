@@ -342,6 +342,14 @@ def test_action_step__just_that_it_doesnt_break(fox):
 
     list(summary)
 
+def test_init__without_protocol_spec(fox):
 
+    city_pages = fox \
+        .extract(
+            "locations.traderjoes.com/pa/",
+            {
+                "url": "Find me all the URLs for the city directories"
+            }
+        ).limit(1)
 
-
+    assert len(city_pages) > 0

@@ -222,6 +222,14 @@ class Workflow:
         self._future.add_done_callback(self._future_done_cb)
         return self._future
 
+    def _fix_url(self, u):
+        if not ( u.startswith("http://") or u.startswith("https://") ):
+            u = "http://" + u
+            self._sdk.logger.warning("Updated your URL to have a protocol spec.  New URL: {u}")
+        return u
+
+
+
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
 
@@ -234,9 +242,9 @@ class Workflow:
         new_instance = self._clone()
 
         if isinstance(url, str):
-            items = [{"url": url}]
+            items = [{"url": self._fix_url(url)}]
         else:
-            items = [{"url": u} for u in url]
+            items = [{"url": self._fix_url(u)} for u in url]
 
         new_instance._workflow["steps"].append({
             "name": "const",
