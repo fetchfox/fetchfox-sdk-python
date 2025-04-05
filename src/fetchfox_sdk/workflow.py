@@ -24,8 +24,13 @@ class Workflow:
         self._results = None
         self._ran_job_id = None
         self._future = None
-        self._log_summaries = []
-        self._log_summaries_yielded_s = set()
+
+        self._last_job = {
+            'log_summaries': [],
+            'intermediate_items': [],
+            'log_summaries_yielded_s': set()
+        }
+
         self._raw_log_level = self._sdk._LOG_LEVELS['error']
 
     def set_log_level(self, log_level_string):
@@ -173,7 +178,8 @@ class Workflow:
             for item in self._sdk._job_result_items_gen(
                         job_id,
                         raw_log_level=self._raw_log_level,
-                        log_summaries_dest=self._log_summaries):
+                        log_summaries_dest=self._last_job['log_summaries'],
+                        intermediate_items_dest=self._last_job['intermediate_items']):
 
                 self._results.append(item)
                 yield Item(item)
@@ -182,10 +188,10 @@ class Workflow:
 
     def get_new_log_summaries(self):
         new_logs = []
-        for log in self._log_summaries:
-            if log not in self._log_summaries_yielded_s:
+        for log in self._last_job['log_summaries']:
+            if log not in self._last_job['log_summaries_yielded_s']:
                 new_logs.append(log)
-                self._log_summaries_yielded_s.add(log)
+                self._last_job['log_summaries_yielded_s'].add(log)
         return new_logs
 
     def _future_done_cb(self, future):

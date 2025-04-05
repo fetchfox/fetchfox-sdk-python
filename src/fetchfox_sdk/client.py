@@ -451,7 +451,9 @@ class FetchFox:
         return filtered_item
 
     def _job_result_items_gen(self, job_id,
-            raw_log_level=logging.ERROR, log_summaries_dest=None):
+            raw_log_level=logging.ERROR,
+            log_summaries_dest=None,
+            intermediate_items_dest=None):
         """Yield new result items as they arrive.
         Log_summaries_dest can be a list that accumulates logs"""
         self.logger.info(f"Streaming results from: [{job_id}]: ")
@@ -459,6 +461,7 @@ class FetchFox:
         seen_ids = set() # We need to track which have been yielded already
         seen_log_summaries = set()
         seen_logs = set()
+        seen_intermediate_item_ids = set()
 
         MAX_WAIT_FOR_CHANGE_MINUTES = 5
         # Job will be assumed done/stalled after this much time passes without
@@ -473,7 +476,7 @@ class FetchFox:
                 first_response_dt = datetime.now()
 
             try: #process log summaries
-                if log_summaries_dest:
+                if log_summaries_dest is not None:
                     logs_summaries = response['results']['logs']['tail']
                     for log_summary_line in logs_summaries:
                         key = (
@@ -502,6 +505,19 @@ class FetchFox:
                             self.logger.log(level_constant, newmsg)
             except KeyError:
                 continue
+
+            try:
+                if intermediate_items_dest is not None:
+                    for step_items in response['results']['full']:
+                        for intermediate_item in step_items['items']:
+                            ii_id = intermediate_item['_meta']['id']
+                            if ii_id not in seen_intermediate_item_ids:
+                                seen_intermediate_item_ids.add(ii_id)
+                                intermediate_items_dest.append(intermediate_item)
+
+            except KeyError:
+                continue
+
 
             # We are considering only the result_items here, not partials
             if 'items' not in response['results']:

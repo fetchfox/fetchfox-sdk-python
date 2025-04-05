@@ -353,3 +353,28 @@ def test_init__without_protocol_spec(fox):
         ).limit(1)
 
     assert len(city_pages) > 0
+
+
+def test_intermediate_results_available(fox):
+    """Test multi-step workflows (like 3_simple_workflows.py)."""
+    # Get trending repos
+    repos = fox.extract(
+        "https://github.com/trending",
+        {
+            "url": "Find the URLs to the trending repositories. They should start with 'https://github.com/'"
+        },
+        limit=2)
+
+    # Follow the URLs to get repo details
+    repo_details = repos.extract(
+        {
+            "name": "What is the full name of this repository (username/repo)?",
+            "description": "What is the description of this repository?",
+            "stars": "How many stars does this repository have?"
+        },
+        per_page='one')
+
+    # Get results
+    results = list(repo_details)
+
+    assert len(repo_details._last_job['intermediate_items']) > 0
