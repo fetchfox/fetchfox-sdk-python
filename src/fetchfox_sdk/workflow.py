@@ -225,10 +225,8 @@ class Workflow:
     def _fix_url(self, u):
         if not ( u.startswith("http://") or u.startswith("https://") ):
             u = "http://" + u
-            self._sdk.logger.warning("Updated your URL to have a protocol spec.  New URL: {u}")
+            self._sdk.logger.warning(f"Updated your URL to have a protocol spec.  New URL: {u}")
         return u
-
-
 
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
