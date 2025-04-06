@@ -17,7 +17,7 @@ incident_item_template = {
         "Find the timestamp when 'resolved' was posted for that incident."
 }
 
-incidents = fox.extract(STATUS_URL, incident_item_template, mode='multiple')
+incidents = fox.extract(STATUS_URL, incident_item_template, per_page='many')
 
 # This may take ~30 seconds to show results
 for incident in incidents:

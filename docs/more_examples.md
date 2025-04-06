@@ -17,7 +17,7 @@ repos_stats = fox.extract(
         "name": "What is the full name of this repository?",
         "stars": "How many stars does this repository have?"
     },
-    mode='single'
+    per_page='one'
 )
 
 results = list(repos_stats)

@@ -11,7 +11,7 @@ items = \
             "title": "What is the title of the commit?",
             "sha": "What is the hash of the commit?",
         },
-        mode="multiple")
+        per_page="many")
 
 # This may take ~15 seconds before showing results.
 print("Recent Commits:")

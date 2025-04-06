@@ -24,7 +24,7 @@ class Item:
         return len(self._data)
 
     def __repr__(self):
-        return f"ResultItem({self._data})"
+        return f"Item({self._data})"
 
     def __str__(self):
         return str(self._data)
@@ -48,7 +48,7 @@ class Item:
         return self._data.get(key, default)
 
     def __eq__(self, other):
-        if isinstance(other, ResultItem):
+        if isinstance(other, Item):
             return self._data == other._data
         elif isinstance(other, dict):
             return self._data == other

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 dependencies = [
     "requests>=2.22.0"
 ]
-name = "fetchfox-sdk-beta"
+name = "fetchfox-sdk"
 version = "0.3.0"
 authors = [
   { name="Thomas Ferrell", email="thomas@fetchfoxai.com" },
