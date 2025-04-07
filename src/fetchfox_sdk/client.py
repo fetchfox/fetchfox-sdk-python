@@ -33,6 +33,8 @@ class FetchFox:
         """
         self.base_url = urljoin(host, _API_PREFIX)
 
+        print('self.base_url', self.base_url)
+
         self.api_key = api_key
         if self.api_key is None:
             self.api_key = os.environ.get("FETCHFOX_API_KEY")
@@ -417,6 +419,24 @@ class FetchFox:
             limit: limit the number of items yielded by this step
         """
         return self._workflow(url_or_urls).extract(*args, **kwargs)
+
+    def crawl(self, url_or_urls, *args, **kwargs):
+        """Crawl for URLs from a starting point.
+
+        A query can be either a prompt for the AI, or a URL pattern.
+
+        A prompt for the AI is a plain language description fo the types of
+        URLs you are looking for.
+
+        A URL pattern is a valid URL with at least one * in it. URLs matching
+        this pattern will be returned.
+
+        Args:
+            query: A plain language prompt, or a URL pattern
+            pull: If true, the page contents will be pulled and returned
+            limit: limit the number of items yielded by this step
+        """
+        return self._workflow(url_or_urls).crawl(*args, **kwargs)
 
     def init(self, url_or_urls, *args, **kwargs):
         """Initialize the workflow with one or more URLs.

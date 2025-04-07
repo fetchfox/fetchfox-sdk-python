@@ -330,6 +330,38 @@ class Workflow:
 
         return new_instance
 
+    def crawl(self, query, mode=None, view=None, pull=False,
+            limit=None, max_pages=1) -> "Workflow":
+        """Crawl for URLs from a starting point.
+
+        A query can be either a prompt for the AI, or a URL pattern.
+
+        A prompt for the AI is a plain language description fo the types of
+        URLs you are looking for.
+
+        A URL pattern is a valid URL with at least one * in it. URLs matching
+        this pattern will be returned.
+
+        Args:
+            query: A plain language prompt, or a URL pattern
+            pull: If true, the page contents will be pulled and returned
+            limit: limit the number of items yielded by this step
+        """
+        new_instance = self._clone()
+
+        new_step = {
+            "name": "crawl",
+            "args": {
+                "query": query,
+                "maxPages": max_pages,
+                "limit": limit,
+                "pull": pull,
+            }
+        }
+
+        new_instance._workflow["steps"].append(new_step)
+        return new_instance
+
     def limit(self, n: int) -> "Workflow":
         """
         Limit the total number of results that this workflow will produce.
