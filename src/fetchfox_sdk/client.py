@@ -33,8 +33,6 @@ class FetchFox:
         """
         self.base_url = urljoin(host, _API_PREFIX)
 
-        print('self.base_url', self.base_url)
-
         self.api_key = api_key
         if self.api_key is None:
             self.api_key = os.environ.get("FETCHFOX_API_KEY")
