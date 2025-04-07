@@ -330,7 +330,7 @@ class Workflow:
 
         return new_instance
 
-    def crawl(self, query, mode=None, view=None, pull=False,
+    def crawl(self, query=None, mode=None, view=None, pull=False,
             limit=None, max_pages=1) -> "Workflow":
         """Crawl for URLs from a starting point.
 
