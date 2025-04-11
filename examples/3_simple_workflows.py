@@ -34,7 +34,7 @@ article_summaries = \
             "article_summary": "A summary of the main content of the article."
                                "Provide 50-100 words."
         },
-        mode="single")
+        per_page="one")
 
 # This may take ~30 seconds to show results.
 print("Found Articles:")

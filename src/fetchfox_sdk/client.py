@@ -11,17 +11,34 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 import threading
+import signal
 
 from .workflow import Workflow
+from .item import Item
 
-logger = logging.getLogger('fetchfox')
+
+TRACE = 5
+logging.addLevelName(TRACE, "TRACE")
+def trace(self, message, *args, **kwargs):
+    if self.isEnabledFor(TRACE):
+        self._log(TRACE, message, args, **kwargs)
+logging.Logger.trace = trace
 
 _API_PREFIX = "/api/v2/"
 
 class FetchFox:
+    _LOG_LEVELS = {
+        "trace": TRACE,
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+
     def __init__(self,
             api_key: Optional[str] = None, host: str = "https://fetchfox.ai",
-            quiet=False):
+            log_level="warning"):
         """Initialize the FetchFox SDK.
 
         You may also provide an API key in the environment variable `FETCHFOX_API_KEY`.
@@ -29,8 +46,9 @@ class FetchFox:
         Args:
             api_key: Your FetchFox API key.  Overrides the environment variable.
             host: API host URL (defaults to production)
-            quiet: set to True to suppress printing
+            log_level: debug|info|warning|error|critical, print logs >= this level to the console
         """
+
         self.base_url = urljoin(host, _API_PREFIX)
 
         self.api_key = api_key
@@ -39,18 +57,56 @@ class FetchFox:
 
         if not self.api_key:
             raise ValueError(
-                "API key must be provided either as argument or "
-                "in FETCHFOX_API_KEY environment variable")
+                "API key must be provided either as an argument or "
+                "in FETCHFOX_API_KEY environment variable.  Find your key at: \n"
+                "https://fetchfox.ai/settings/api-keys")
 
         self.headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer: {self.api_key}'
         }
 
-        self.quiet = quiet
+        # Convert log_level argument to a logging constant
+        if isinstance(log_level, str):
+            log_level = self._LOG_LEVELS.get(log_level.lower(), logging.WARNING)
+        self.log_level = log_level
+
+        # Configure the logger
+        self.logger = logging.getLogger("fetchfox")
+        self.logger.setLevel(self.log_level)
+
+        # Create a default handler to print to console
+        if not self.logger.handlers:  # but only if no handler is present
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(self.log_level)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            ch.setFormatter(formatter)
+            self.logger.addHandler(ch)
+
         self._executor = ThreadPoolExecutor(max_workers=1)
         # TODO: this needs to be changed to support concurrent job polling,
         # but I am setting it to 1 right now as a sanity-check
+
+        self._attached_jobs = []
+        try:
+            signal.signal(signal.SIGINT, self._handle_signit)
+        except ValueError:
+            # If we're not in the main thread, we can't do this --e.g. flask req
+            pass
+
+    def _handle_signit(self, sig, frame):
+        """
+        On Ctrl-c, abort any attached jobs (not touching detached jobs)
+        """
+        for job_id in self._attached_jobs:
+            try:
+                self._request("POST", f"jobs/{job_id}/stop")
+                self.logger.warning(f"Aborted job: {job_id}")
+            except Exception as e:
+                self.logger.error("Failed to abort job [{job_id}]: {e}")
+        sys.exit(1)
 
 
     def _request(self, method: str, path: str, json_data: Optional[dict] = None,
@@ -77,14 +133,11 @@ class FetchFox:
         response.raise_for_status()
         body = response.json()
 
-        logger.debug(
+        per_page='many'
+        self.logger.trace(
             f"Response from %s %s:\n%s  at %s",
             method, path, pformat(body), datetime.now())
         return body
-
-    def _nqprint(self, *args, **kwargs):
-        if not self.quiet:
-            print(*args, **kwargs)
 
     def _workflow(self, url_or_urls: Union[str, List[str]] = None) -> "Workflow":
         """Create a new workflow using this SDK instance.
@@ -184,6 +237,8 @@ class FetchFox:
 
         Something like fox.workflow_by_id(ID).configure_params({state:"AK"}).export("blah.csv")
 
+        Returns:
+            A workflow object.
         """
         workflow_json = self._get_workflow(workflow_id)
         return self.workflow_from_json(workflow_json)
@@ -220,8 +275,59 @@ class FetchFox:
         response = self._request("GET", f"workflow/{id}")
         return response
 
+    def run_detached(self, workflow):
+        """Run a workflow without watching for the results.  Returns a job_id
+        which can be queried later by calling
+        FetchFoxSDK.get_results_from_detached(job_id).
+        You can exit this process, and get the results later.
+
+        Args:
+            workflow: a workflow object.
+        """
+
+        # Exposing this separately rather than exposing "_run_workflow", because
+        # it would likely confuse people to have a function called "run_workflow"
+        # that they should not normally use.
+        return self._run_workflow(workflow=workflow, detached=True)
+
+    def get_results_from_detached(self, job_id, wait=True):
+        """Pass a job_id and retrieve the results.  By default, will *wait* for
+        the job to finish and will return the complete results.
+
+        If you want to not block, pass wait=False and either the complete results
+        or `None` will be returned.
+
+        Args:
+            job_id: job_id from `FetchFoxSDK.run_detached()`
+            wait: use wait=False to get an immediate response, which will either be the full results or None if the job is not yet complete.
+        Returns:
+            The full results of the job.  Or, if wait=False and the job is not done, None.
+        """
+
+        if wait:
+            return [
+                Item(result)
+                for result
+                in list(self._job_result_items_gen(job_id))
+            ]
+        else:
+            resp = self._poll_status_once(job_id, detached_skip_wait=True)
+            if not resp:
+                return None
+            if not resp.get('done'):
+                return None
+            else:
+                results = [
+                    self._cleanup_job_result_item(e)
+                    for e
+                    in resp['results']['items']
+                ]
+
+                return [ Item(result) for result in results ]
+
+
     def _run_workflow(self, workflow_id: Optional[str] = None,
-                    workflow: Optional[Workflow] = None,
+                    workflow: Optional[Workflow] = None, detached=False,
                     params: Optional[dict] = None) -> str:
         """Run a workflow. Either provide the ID of a registered workflow,
         or provide a workflow object (which will be registered
@@ -269,10 +375,12 @@ class FetchFox:
 
         if workflow_id is None:
             workflow_id = self._register_workflow(workflow) # type: ignore
-            logger.info("Registered new workflow with id: %s", workflow_id)
+            self.logger.info("Registered new workflow with id: %s", workflow_id)
 
         #response = self._request('POST', f'workflows/{workflow_id}/run', params or {})
         response = self._request('POST', f'workflows/{workflow_id}/run')
+        if not detached:
+            self._attached_jobs.append(response['jobId'])
 
         # NOTE: If we need to return anything else here, we should keep this
         # default behavior, but add an optional kwarg so "full_response=True"
@@ -295,7 +403,7 @@ class FetchFox:
         """
         return self._request('GET', f'jobs/{job_id}')
 
-    def _poll_status_once(self, job_id):
+    def _poll_status_once(self, job_id, detached_skip_wait=False):
         """Poll until we get one status response.  This may be more than one poll,
         if it is the first one, since the job will 404 for a while before
         it is scheduled."""
@@ -304,17 +412,16 @@ class FetchFox:
         while True:
             try:
                 status = self._get_job_status(job_id)
-                self._nqprint(".", end="")
                 sys.stdout.flush()
-
-                #TODO print partial status?
 
                 return status
             except requests.exceptions.HTTPError as e:
+                if detached_skip_wait:
+                    return None
+
                 if e.response.status_code in [404, 500]:
-                    self._nqprint("x", end="")
                     sys.stdout.flush()
-                    logger.info("Waiting for job %s to be scheduled.", job_id)
+                    self.logger.info("Waiting for job %s to be scheduled.", job_id)
 
                     if started_waiting_for_job_dt is None:
                         started_waiting_for_job_dt = datetime.now()
@@ -340,14 +447,23 @@ class FetchFox:
         # TODO: What should we be doing with `_url`?
         # # Keep _url if we have no other keys
         # if not filtered_item and '_url' in item:
-        filtered_item['_url'] = item['_url']
+        if '_url' in item:
+            filtered_item['_url'] = item['_url']
+
         return filtered_item
 
-    def _job_result_items_gen(self, job_id):
-        """Yield new result items as they arrive."""
-        self._nqprint(f"Streaming results from: [{job_id}]: ")
+    def _job_result_items_gen(self, job_id,
+            raw_log_level=logging.ERROR,
+            log_summaries_dest=None,
+            intermediate_items_dest=None):
+        """Yield new result items as they arrive.
+        Log_summaries_dest can be a list that accumulates logs"""
+        self.logger.info(f"Streaming results from: [{job_id}]: ")
 
         seen_ids = set() # We need to track which have been yielded already
+        seen_log_summaries = set()
+        seen_logs = set()
+        seen_intermediate_item_ids = set()
 
         MAX_WAIT_FOR_CHANGE_MINUTES = 5
         # Job will be assumed done/stalled after this much time passes without
@@ -360,6 +476,50 @@ class FetchFox:
             # The above will block until we get one successful response
             if not first_response_dt:
                 first_response_dt = datetime.now()
+
+            try: #process log summaries
+                if log_summaries_dest is not None:
+                    logs_summaries = response['results']['logs']['tail']
+                    for log_summary_line in logs_summaries:
+                        key = (
+                            log_summary_line['timestamp'],
+                            log_summary_line['message']
+                        )
+                        if key not in seen_log_summaries:
+                            log_summaries_dest.append(key)
+                            seen_log_summaries.add(key)
+            except KeyError:
+                continue
+
+            try:
+                logs = response['results']['logs']['raw']
+                for log_line in logs:
+                    key = (
+                        log_line['timestamp'],
+                        log_line['level'],
+                        log_line['message']
+                    )
+                    if key not in seen_logs:
+                        level_constant = self._LOG_LEVELS[log_line['level']]
+                        newmsg = f"[SERVER] {log_line['message']}"
+                        seen_logs.add(key)
+                        if level_constant >= raw_log_level:
+                            self.logger.log(level_constant, newmsg)
+            except KeyError:
+                continue
+
+            try:
+                if intermediate_items_dest is not None:
+                    for step_items in response['results']['full']:
+                        for intermediate_item in step_items['items']:
+                            ii_id = intermediate_item['_meta']['id']
+                            if ii_id not in seen_intermediate_item_ids:
+                                seen_intermediate_item_ids.add(ii_id)
+                                intermediate_items_dest.append(intermediate_item)
+
+            except KeyError:
+                continue
+
 
             # We are considering only the result_items here, not partials
             if 'items' not in response['results']:
@@ -375,7 +535,6 @@ class FetchFox:
                     # We have a new result_item
                     results_changed_dt = datetime.now()
                     seen_ids.add(jri_id)
-                    self._nqprint("")
                     yield self._cleanup_job_result_item(job_result_item)
 
             if results_changed_dt:
@@ -411,8 +570,9 @@ class FetchFox:
         To follow pagination, provide max_pages > 1.
 
         Args:
+            url_or_urls: The starting URL or a list of starting URLs
             item_template: the item template described above
-            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
+            per_page: 'one'|'many'|'auto' - defaults to 'auto'.  Set this to 'one' if each URL has only a single item.  Set this to 'many' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
         """

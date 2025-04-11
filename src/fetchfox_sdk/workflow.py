@@ -8,8 +8,6 @@ import concurrent.futures
 
 from .item import Item
 
-logger = logging.getLogger('fetchfox')
-
 class Workflow:
 
     _executor = concurrent.futures.ThreadPoolExecutor()
@@ -26,6 +24,32 @@ class Workflow:
         self._results = None
         self._ran_job_id = None
         self._future = None
+
+        self._last_job = {
+            'log_summaries': [],
+            'intermediate_items': [],
+            'log_summaries_yielded_s': set()
+        }
+
+        self._raw_log_level = self._sdk._LOG_LEVELS['error']
+
+    def set_log_level(self, log_level_string):
+        """
+        Set the log level for the *server* logs pertaining to jobs spawned of
+        this workflow.
+
+        The logs >= the level set here will be forwarded to the SDK's logger.
+        The logs < the level set here will be ignored.
+
+        Defaults to 'error'.
+
+        Must be set before the job runs, will not take effect if the job is
+        already started.
+
+        Args:
+            log_level: 'debug' | 'info' | 'warn' | 'error' | 'critical'
+        """
+        self._raw_log_level = self._sdk._LOG_LEVELS[log_level_string]
 
     @property
     def all_results(self):
@@ -102,7 +126,7 @@ class Workflow:
             # so that, when it runs, we'll produce the desired results
             if self._ran_job_id is not None:
                 #TODO - anything else we should do when we've run but no results?
-                logger.debug("Cloning a job that ran, but which had no results")
+                self._sdk.logger.debug("Cloning a job that ran, but which had no results")
 
             new_instance = Workflow(self._sdk)
             new_instance._workflow = copy.deepcopy(self._workflow)
@@ -137,7 +161,7 @@ class Workflow:
         has results, derived workflows will be given the _results_ from this workflow,
         NOT the steps of this workflow.
         """
-        logger.debug("Running workflow to completion")
+        self._sdk.logger.debug("Running workflow to completion")
         return list(self._results_gen())
 
     def _results_gen(self):
@@ -146,16 +170,29 @@ class Workflow:
         without running again.
         """
 
-        logger.debug("Streaming Results")
+        self._sdk.logger.debug("Streaming Results")
         if not self.has_results:
             self._results = []
             job_id = self._sdk._run_workflow(workflow=self)
             self._ran_job_id = job_id #track that we have ran
-            for item in self._sdk._job_result_items_gen(job_id):
+            for item in self._sdk._job_result_items_gen(
+                        job_id,
+                        raw_log_level=self._raw_log_level,
+                        log_summaries_dest=self._last_job['log_summaries'],
+                        intermediate_items_dest=self._last_job['intermediate_items']):
+
                 self._results.append(item)
                 yield Item(item)
         else:
             yield from self.all_results #yields Items
+
+    def get_new_log_summaries(self):
+        new_logs = []
+        for log in self._last_job['log_summaries']:
+            if log not in self._last_job['log_summaries_yielded_s']:
+                new_logs.append(log)
+                self._last_job['log_summaries_yielded_s'].add(log)
+        return new_logs
 
     def _future_done_cb(self, future):
         """Done-callback: triggered when the future completes
@@ -191,6 +228,12 @@ class Workflow:
         self._future.add_done_callback(self._future_done_cb)
         return self._future
 
+    def _fix_url(self, u):
+        if not ( u.startswith("http://") or u.startswith("https://") ):
+            u = "http://" + u
+            self._sdk.logger.warning(f"Updated your URL to have a protocol spec.  New URL: {u}")
+        return u
+
     def init(self, url: Union[str, List[str]]) -> "Workflow":
         """Initialize the workflow with one or more URLs.
 
@@ -203,9 +246,9 @@ class Workflow:
         new_instance = self._clone()
 
         if isinstance(url, str):
-            items = [{"url": url}]
+            items = [{"url": self._fix_url(url)}]
         else:
-            items = [{"url": u} for u in url]
+            items = [{"url": self._fix_url(u)} for u in url]
 
         new_instance._workflow["steps"].append({
             "name": "const",
@@ -248,7 +291,7 @@ class Workflow:
                 if os.path.exists(filename) and overwrite:
                     raise RuntimeError("No results.  Refusing to overwrite.")
                 else:
-                    self._sdk._nqprint("No results to export.")
+                    self._sdk.logger.warn("No results to export.")
 
         # Now we access the magic property, so execution will occur if needed
         raw_results = [ dict(result_item) for result_item in self.all_results ]
@@ -269,7 +312,7 @@ class Workflow:
                     f.write(json.dumps(item) + '\n')
 
 
-    def extract(self, item_template: dict, mode=None, view=None,
+    def extract(self, item_template: dict, per_page=None, view=None,
             limit=None, max_pages=1) -> "Workflow":
         """Provide an item_template which describes what you want to extract
         from the URLs processed by this step.
@@ -290,7 +333,7 @@ class Workflow:
 
         Args:
             item_template: the item template described above
-            mode: 'single'|'multiple'|'auto' - defaults to 'auto'.  Set this to 'single' if each URL has only a single item.  Set this to 'multiple' if each URL should yield multiple items
+            per_page: 'one'|'many'|'auto' - defaults to 'auto'.  Set this to 'one' if each URL has only a single item.  Set this to 'many' if each URL should yield multiple items
             max_pages: enable pagination from the given URL.  Defaults to one page only.
             limit: limit the number of items yielded by this step
             view: 'html' | 'selectHtml' | 'text' - defaults to HTML (the full HTML).  Use 'selectHTML' to have the AI see only text and links.  Use 'text' to have the AI see only text.
@@ -306,8 +349,8 @@ class Workflow:
                     f"Reserved names are: {', '.join(RESERVED_PROPERTIES)}"
                 )
 
-        if mode is not None and mode not in ["single", "multiple", "auto"]:
-            raise ValueError("Mode may only be 'single'|'multiple'|'auto'")
+        if per_page is not None and per_page not in ["one", "many", "auto"]:
+            raise ValueError("per_page may only be 'one'|'many'|'auto'")
 
         new_instance = self._clone()
 
@@ -323,7 +366,14 @@ class Workflow:
         if view is not None:
             new_step['args']['view'] = view
 
-        if mode is not None:
+        if per_page is not None:
+            # We're calling it per-page, but it's still 'mode' on the server
+            if per_page == "one":
+                mode = "single"
+            elif per_page == "many":
+                mode = "multiple"
+            elif per_page == "auto":
+                mode == "auto"
             new_step['args']['mode'] = mode
 
         new_instance._workflow["steps"].append(new_step)
@@ -362,6 +412,24 @@ class Workflow:
         new_instance._workflow["steps"].append(new_step)
         return new_instance
 
+    def action(self, instruction) -> "Workflow":
+        """
+        Instruct the AI to take an action on the page.
+
+        It can click or enter text, etc.
+
+        Args:
+            instruction: a prompt for the AI to act upon the page
+        """
+        new_instance = self._clone()
+        new_instance._workflow['steps'].append({
+            "name": "action",
+            "args": {
+                "commands": [{ "prompt": instruction }],
+            }
+        })
+        return new_instance
+
     def limit(self, n: int) -> "Workflow":
         """
         Limit the total number of results that this workflow will produce.
@@ -375,18 +443,23 @@ class Workflow:
         new_instance._workflow['options']["limit"] = n
         return new_instance
 
-    def unique(self, fields_list: List[str], limit=None) -> "Workflow":
-        """Provide a list of fields which will be used to check the uniqueness
-        of the items passing through this step.
+    def unique(self, field_or_fields_list: List[str], limit=None) -> "Workflow":
+        """Provide a field or list of fields which will be used to check the
+        uniqueness of the items passing through this step.
 
         Any items which are duplicates (as determined by these fields only),
         will be filtered and will not be seen by the next step in your workflow.
 
         Args:
-            fields_list: the instruction described above
+            field_or_fields_list: the field or fields to use for deduplication
             limit: limit the number of items yielded by this step
         """
         new_instance = self._clone()
+
+        fields_list = (
+            field_or_fields_list if isinstance(field_or_fields_list, list)
+            else [field_or_fields_list]
+        )
 
         new_instance._workflow['steps'].append({
             "name": "unique",

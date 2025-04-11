@@ -75,11 +75,11 @@ your starting URL.
 ```
 This works like the previous example, but loads many more results.
 
-#### Extraction Modes: Single and Multiple
+#### Extraction: Items per page?
 
-You may have noticed the `mode` parameter being used in extractions.  This controls how many items will be yielded per page.
+You may have noticed the `per_page` parameter being used in extractions.  This controls how many items will be yielded per page.
 
-You can specify `single` or `multiple`.  If you don't provide this parameter, FetchFox will use AI to guess, based on your template and the contents of the page.
+You can specify `one` or `many`.  If you don't provide this parameter, FetchFox will use AI to guess, based on your template and the contents of the page.
 
 ### Following URLs
 
@@ -164,4 +164,4 @@ The above will produce a JSONL file with lines like this:
 ```
 
 #### More About Workflows
-Workflow are lazy, carry results with them, and may be run concurrently.  See [concepts](../concepts) and [more examples](../more_examples).
+Workflow are lazy, carry results with them, and may be run concurrently or detached.  See [concepts](../concepts) and [more examples](../more_examples).

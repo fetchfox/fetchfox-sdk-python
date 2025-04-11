@@ -10,7 +10,7 @@ items = \# <<<QS_INCLUDE_START>>>
             "title": "What is the title of the commit?",
             "sha": "What is the hash of the commit?",
         },
-        mode="multiple",
+        per_page="many",
         max_pages=5)
 # <<<QS_INCLUDE_END>>>
 

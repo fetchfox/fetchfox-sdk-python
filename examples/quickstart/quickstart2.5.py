@@ -12,7 +12,7 @@ items = \
             "sha": "What is the hash of the commit?",
             "url": "What is the link to the commit?" # Added this field
         },
-        mode="multiple")
+        per_page="many")
 # Extracts URLs like: https://github.com/torvalds/linux/commit/f31529...
 # <<<QS_INCLUDE_END>>>
 
@@ -30,7 +30,7 @@ items2 = \
             "username": "Who committed this commit?",
             "summary": "Summarize the extended description briefly."
         },
-        mode='single')
+        per_page='one')
 # <<<QS_INCLUDE_END2>>>
 
 for commit_detail in items2:
