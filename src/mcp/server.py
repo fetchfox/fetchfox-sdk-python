@@ -1,6 +1,7 @@
 from fastmcp import FastMCP
 from fetchfox_sdk import FetchFox
 
+# ADD API KEY TO CLIENT INIT FetchFox(api_key="YOUR KEY")
 fox = FetchFox()
 
 mcp = FastMCP("FetchFox MCP", dependencies=["fetchfox_sdk"])
