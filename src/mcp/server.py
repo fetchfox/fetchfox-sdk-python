@@ -7,9 +7,9 @@ fox = FetchFox()
 mcp = FastMCP("FetchFox MCP", dependencies=["fetchfox_sdk"])
 
 @mcp.tool()
-def extract(url: str, keys_to_extraction_instructions: dict) -> list:
+def extract(url: str, item_template: dict) -> list:
     """Extract data from a URL and return the results"""
-    items = fox.extract(url, keys_to_extraction_instructions)
+    items = fox.extract(url, item_template)
     
     results = []
     for item in items:
@@ -27,3 +27,8 @@ def crawl(url: str) -> list:
         results.append(url)
     
     return results
+
+@mcp.prompt()
+def scrape() -> str:
+    """Scrape a URL and return the results"""
+    return 'You must provide fields to scrape with a corresponding question for the field in the format of a dictionary.'
