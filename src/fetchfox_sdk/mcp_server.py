@@ -33,6 +33,12 @@ def scrape() -> str:
     """Scrape a URL and return the results"""
     return 'You must provide fields to scrape with a corresponding question for the field in the format of a dictionary.'
 
+
+@mcp.prompt()
+def crawl() -> str:
+    """Crawl for URLs from a starting point and return the results"""
+    return 'Use the exact url the user provides to crawl for URLs, the wildcard * is allowed. You must not modify the url in any way.'
+
 def install():
     import subprocess
     import os
