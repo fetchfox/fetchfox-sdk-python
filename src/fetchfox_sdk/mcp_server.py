@@ -1,5 +1,7 @@
 from fastmcp import FastMCP
 from fetchfox_sdk.client import FetchFox
+import subprocess
+import os
 
 # ADD API KEY TO CLIENT INIT FetchFox(api_key="YOUR KEY")
 fox = FetchFox()
@@ -40,12 +42,5 @@ def crawl(url: str) -> str:
     return f'Provide the exact url to crawl for URLs, the wildcard * is allowed. Url: `{url}`'
 
 def install():
-    import subprocess
-    import os
-    
-    # Get the current file path
     current_file = os.path.abspath(__file__)
-    
-    # Execute the fastmcp install command with the current file
     subprocess.run(["fastmcp", "install", current_file], check=True)
-    return 0  # Return success code
