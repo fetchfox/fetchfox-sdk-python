@@ -35,9 +35,9 @@ def scrape() -> str:
 
 
 @mcp.prompt()
-def crawl() -> str:
+def crawl(url: str) -> str:
     """Crawl for URLs from a starting point and return the results"""
-    return 'Use the exact url the user provides to crawl for URLs, the wildcard * is allowed. You must not modify the url in any way.'
+    return f'Provide the exact url to crawl for URLs, the wildcard * is allowed. Url: `{url}`'
 
 def install():
     import subprocess
