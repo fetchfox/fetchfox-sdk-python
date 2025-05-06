@@ -463,7 +463,7 @@ class FetchFox:
             if not first_response_dt:
                 first_response_dt = datetime.now()
 
-            try: #process log summaries
+            try:
                 if log_summaries_dest is not None:
                     logs_summaries = response['results']['logs']['tail']
                     for log_summary_line in logs_summaries:
@@ -475,7 +475,7 @@ class FetchFox:
                             log_summaries_dest.append(key)
                             seen_log_summaries.add(key)
             except KeyError:
-                continue
+                pass
 
             try:
                 logs = response['results']['logs']['raw']
@@ -492,7 +492,7 @@ class FetchFox:
                         if level_constant >= raw_log_level:
                             self.logger.log(level_constant, newmsg)
             except KeyError:
-                continue
+                pass
 
             try:
                 if intermediate_items_dest is not None:
@@ -502,10 +502,8 @@ class FetchFox:
                             if ii_id not in seen_intermediate_item_ids:
                                 seen_intermediate_item_ids.add(ii_id)
                                 intermediate_items_dest.append(intermediate_item)
-
             except KeyError:
                 continue
-
 
             # We are considering only the result_items here, not partials
             if 'items' not in response['results']:

@@ -7,7 +7,7 @@ dependencies = [
     "requests>=2.22.0"
 ]
 name = "fetchfox-sdk"
-version = "0.5.0"
+version = "0.7.0"
 authors = [
   { name="FetchFox", email="dev@fetchfoxai.com" },
 ]
